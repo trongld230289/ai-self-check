@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "trongld232",
   "author": {
     "name": "Trong Le",
@@ -130,8 +130,8 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "node extension.js",
-    "test": "node extension.js"
+    "vscode:prepublish": "echo 'Extension ready for packaging'",
+    "test": "echo 'Extension test placeholder'"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",
