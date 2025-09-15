@@ -1,13 +1,47 @@
 {
   "name": "ai-self-check",
   "displayName": "AI Self Check",
-  "description": "Simple code review with @review-file and @review-changes comment commands",
+  "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
   "version": "1.0.1",
   "publisher": "trongld232",
+  "author": {
+    "name": "Trong Le",
+    "email": "trongld232@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trongld230289/ai-self-check.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trongld230289/ai-self-check/issues"
+  },
+  "homepage": "https://github.com/trongld230289/ai-self-check#readme",
+  "keywords": [
+    "ai",
+    "code review",
+    "copilot",
+    "chat",
+    "analysis",
+    "typescript",
+    "javascript",
+    "git",
+    "diff",
+    "claude",
+    "gpt"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "Linters"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -20,7 +54,7 @@
         "category": "AI Self Check"
       },
       {
-        "command": "aiCodeReviewer.reviewChanges", 
+        "command": "aiCodeReviewer.reviewChanges",
         "title": "Review Changes",
         "category": "AI Self Check"
       }
@@ -34,7 +68,7 @@
         },
         {
           "command": "aiCodeReviewer.reviewChanges",
-          "group": "navigation@2", 
+          "group": "navigation@2",
           "when": "editorTextFocus"
         }
       ],
@@ -61,7 +95,7 @@
           "scope": "application"
         },
         "aiCodeReviewer.azureDevOps.organization": {
-          "type": "string", 
+          "type": "string",
           "default": "",
           "description": "Default Azure DevOps organization name",
           "scope": "application"
@@ -69,7 +103,7 @@
         "aiCodeReviewer.azureDevOps.defaultProject": {
           "type": "string",
           "default": "",
-          "description": "Default Azure DevOps project name", 
+          "description": "Default Azure DevOps project name",
           "scope": "application"
         }
       }
@@ -77,14 +111,14 @@
     "chatParticipants": [
       {
         "id": "review-file",
-        "name": "review-file", 
+        "name": "review-file",
         "description": "Review a specific file based on review-code.md guidelines",
         "isSticky": true
       },
       {
         "id": "review-changes",
         "name": "review-changes",
-        "description": "Review changes in a specific file based on review-code.md guidelines", 
+        "description": "Review changes in a specific file based on review-code.md guidelines",
         "isSticky": true
       },
       {
@@ -100,6 +134,7 @@
     "test": "node extension.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.80.0"
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.19.0"
   }
 }

@@ -1,34 +1,165 @@
-# AI Code Reviewer Extension - Simple Prompt Converter
+# AI Self Check
 
-## Overview
-This extension provides a simple way to convert custom chat commands into standardized review prompts for GitHub Copilot.
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-green.svg)](https://code.visualstudio.com/)
 
-## How It Works
-- **Input**: Custom chat commands (`@review-file` or `@review-changes`)
-- **Output**: Standardized prompts that reference your `review-code.md` template
-- **Analysis**: GitHub Copilot handles all the actual code review using your template
+AI-powered code review extension for VS Code with intelligent chat participants and multiple AI model support.
 
-## Commands
+## ✨ Features
 
-### @review-file
-Reviews the entire file based on your review guidelines.
+- 🤖 **@review-file**: Comprehensive AI analysis of current file
+- 📝 **@review-changes**: Smart review of git changes with detailed feedback  
+- 🧠 **Multiple AI Models**: Supports Claude, GPT-4, and intelligent fallback
+- 📊 **Smart Analysis**: Language-specific code analysis (TypeScript, JavaScript, Python, etc.)
+- ⚡ **Real-time Streaming**: Live AI responses with markdown formatting
+- 🎯 **Template-based**: Consistent review format with best practices
 
-**Usage:**
+## 🚀 Quick Start
+
+### Installation
+
+1. **From VS Code Marketplace** (Recommended)
+   - Open VS Code Extensions (`Ctrl+Shift+X`)
+   - Search for "AI Self Check"
+   - Click "Install"
+
+2. **From VSIX Package**
+   ```bash
+   code --install-extension ai-self-check-1.0.1.vsix
+   ```
+
+3. **From Source**
+   ```bash
+   git clone https://github.com/trongld230289/ai-self-check.git
+   cd ai-self-check
+   npm install
+   code --install-extension .
+   ```
+
+## 📖 Usage
+
+### Review Current File
+Open VS Code Chat (`Ctrl+Shift+I`) and type:
 ```
-@review-file src/path/to/your/file.ts
+@review-file
 ```
 
-**Output:**
+### Review Git Changes
 ```
-review-file src/path/to/your/file.ts based on review-code.md
+@review-changes
 ```
 
-### @review-changes  
-Reviews only git changes in the specified file.
+## 🎯 Example Output
 
-**Usage:**
+### File Review
+```markdown
+# 📄 Code Review Analysis
+
+## 📊 Overview
+- **File:** src/components/UserProfile.tsx
+- **Type:** TypeScript React Component
+- **Lines:** 156
+
+## ✅ Strengths
+- Clean component structure
+- Proper TypeScript types
+- Good error handling
+
+## ⚠️ Improvements
+- Consider memoization for expensive calculations
+- Add prop validation
+- Extract custom hooks
+
+## 🎯 Recommendations
+- Use React.memo() for performance
+- Add comprehensive unit tests
 ```
-@review-changes src/path/to/your/file.ts
+```
+## 🔧 Configuration
+
+Open VS Code Settings (`Ctrl+,`) and search for "AI Self Check":
+
+- **Azure DevOps Token**: Personal access token for PR reviews
+- **Organization**: Default Azure DevOps organization  
+- **Default Project**: Default project name
+
+## 🎨 Supported Languages
+
+- TypeScript/JavaScript (`.ts`, `.js`, `.tsx`, `.jsx`)
+- Python (`.py`)
+- Java (`.java`)
+- C# (`.cs`)
+- C/C++ (`.c`, `.cpp`)
+- PHP (`.php`)
+- Ruby (`.rb`)
+- Go (`.go`)
+- Rust (`.rs`)
+- Kotlin (`.kt`)
+- Swift (`.swift`)
+
+## 🛠️ Development
+
+### Building from Source
+```bash
+# Clone repository
+git clone https://github.com/trongld230289/ai-self-check.git
+cd ai-self-check
+
+# Install dependencies
+npm install
+
+# Package extension
+npx @vscode/vsce package
+
+# Install locally
+code --install-extension ai-self-check-1.0.1.vsix
+```
+
+### Testing
+```bash
+npm test
+```
+
+## 📋 Requirements
+
+- **VS Code**: Version 1.90.0 or higher
+- **AI Models**: Claude, GPT-4, or compatible models available in VS Code
+- **Git**: For change detection and diff analysis
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👨‍💻 Author
+
+**Trong Le**
+- GitHub: [@trongld230289](https://github.com/trongld230289)
+- Email: trongld232@gmail.com
+
+## 🙏 Acknowledgments
+
+- VS Code team for the excellent extension API
+- OpenAI and Anthropic for AI model capabilities
+- The open source community for inspiration
+
+## 📊 Stats
+
+![GitHub stars](https://img.shields.io/github/stars/trongld230289/ai-self-check?style=social)
+![GitHub forks](https://img.shields.io/github/forks/trongld230289/ai-self-check?style=social)
+![GitHub issues](https://img.shields.io/github/issues/trongld230289/ai-self-check)
+
+---
+
+⭐ **Star this repo if you find it helpful!** ⭐
 ```
 
 **Output:**
