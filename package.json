@@ -1,0 +1,105 @@
+{
+  "name": "ai-self-check",
+  "displayName": "AI Self Check",
+  "description": "Simple code review with @review-file and @review-changes comment commands",
+  "version": "1.0.1",
+  "publisher": "trongld232",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiCodeReviewer.reviewFile",
+        "title": "Review File",
+        "category": "AI Self Check"
+      },
+      {
+        "command": "aiCodeReviewer.reviewChanges", 
+        "title": "Review Changes",
+        "category": "AI Self Check"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "aiCodeReviewer.reviewFile",
+          "group": "navigation@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "aiCodeReviewer.reviewChanges",
+          "group": "navigation@2", 
+          "when": "editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "aiCodeReviewer.reviewFile",
+          "group": "navigation@1",
+          "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
+        },
+        {
+          "command": "aiCodeReviewer.reviewChanges",
+          "group": "navigation@2",
+          "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Self Check",
+      "properties": {
+        "aiCodeReviewer.azureDevOps.personalAccessToken": {
+          "type": "string",
+          "default": "",
+          "description": "Azure DevOps Personal Access Token for PR review (requires Code:Read and Pull Request:Read permissions)",
+          "scope": "application"
+        },
+        "aiCodeReviewer.azureDevOps.organization": {
+          "type": "string", 
+          "default": "",
+          "description": "Default Azure DevOps organization name",
+          "scope": "application"
+        },
+        "aiCodeReviewer.azureDevOps.defaultProject": {
+          "type": "string",
+          "default": "",
+          "description": "Default Azure DevOps project name", 
+          "scope": "application"
+        }
+      }
+    },
+    "chatParticipants": [
+      {
+        "id": "review-file",
+        "name": "review-file", 
+        "description": "Review a specific file based on review-code.md guidelines",
+        "isSticky": true
+      },
+      {
+        "id": "review-changes",
+        "name": "review-changes",
+        "description": "Review changes in a specific file based on review-code.md guidelines", 
+        "isSticky": true
+      },
+      {
+        "id": "review-pr",
+        "name": "review-pr",
+        "description": "Review Azure DevOps Pull Request from URL using AI analysis",
+        "isSticky": true
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "node extension.js",
+    "test": "node extension.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0"
+  }
+}
