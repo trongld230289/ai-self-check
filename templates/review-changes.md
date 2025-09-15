@@ -4,17 +4,10 @@
 **ALWAYS follow this exact format for every code review, regardless of conversation context or previous reviews. This structure is MANDATORY and UNCHANGEABLE.**
 
 
-### Option 1: Review Entire File
+### Review Entire File
 **Prompt:** `review-file [filename]`
 - Reviews the complete file for all issues
 - Comprehensive analysis of entire codebase
-
-### Option 2: Review Recent Changes Only
-**Prompt:** `review-changes [filename]`
-- Reviews only recent code changes/modifications
-- Focuses on local code changes
-- Faster, targeted review
-
 
 ### Start Review For Each Change:
 

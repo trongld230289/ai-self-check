@@ -3,6 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+// Session tracking for "Enter twice" functionality
+const chatSessions = new Map();
+
 /**
  * @param {vscode.ExtensionContext} context
  */
@@ -91,6 +94,31 @@ function activate(context) {
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
                     const fileName = path.basename(activeEditor.document.fileName);
+                    
+                    // Check if user has seen the question before (second Enter)
+                    const sessionKey = `review-changes-${activeEditor.document.fileName}`;
+                    const hasSeenQuestion = chatSessions.get(sessionKey) || false;
+                    
+                    console.log(`🔍 Session check: ${sessionKey} = ${hasSeenQuestion}`);
+                    
+                    if (hasSeenQuestion) {
+                        // Second Enter - Auto proceed like clicking "Yes"
+                        stream.markdown(`# 🔍 Reviewing Changes: \`${fileName}\`\n\n`);
+                        stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
+                        stream.markdown('🚀 **Starting git changes review...**\n\n');
+                        
+                        // Clear the session flag
+                        chatSessions.delete(sessionKey);
+                        
+                        // Automatically review the current file's changes
+                        await handleFilePathChangesReview(activeEditor.document.fileName, stream, null, context, request);
+                        return;
+                    }
+                    
+                    // First time - Show question and set session flag
+                    chatSessions.set(sessionKey, true);
+                    console.log(`🔍 Session set: ${sessionKey} = true`);
+                    
                     stream.markdown('# 🔍 Code Review Assistant\n\n');
                     stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
                     
@@ -111,6 +139,7 @@ function activate(context) {
                     
                     stream.markdown('\n\n');
                     stream.markdown(`**Question:** Do you want to review git changes for \`${fileName}\`?\n\n`);
+                    stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
                     return;
                 } else {
                     stream.markdown('# 🔍 Code Review Assistant\n\n');
@@ -160,6 +189,31 @@ function activate(context) {
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
                     const fileName = path.basename(activeEditor.document.fileName);
+                    
+                    // Check if user has seen the question before (second Enter)
+                    const sessionKey = `review-file-${activeEditor.document.fileName}`;
+                    const hasSeenQuestion = chatSessions.get(sessionKey) || false;
+                    
+                    console.log(`📁 Session check: ${sessionKey} = ${hasSeenQuestion}`);
+                    
+                    if (hasSeenQuestion) {
+                        // Second Enter - Auto proceed like clicking "Yes"
+                        stream.markdown(`# 📁 Reviewing File: \`${fileName}\`\n\n`);
+                        stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
+                        stream.markdown('🚀 **Starting full file review...**\n\n');
+                        
+                        // Clear the session flag
+                        chatSessions.delete(sessionKey);
+                        
+                        // Automatically review the current file
+                        await handleFilePathReview(activeEditor.document.fileName, stream, null, context);
+                        return;
+                    }
+                    
+                    // First time - Show question and set session flag
+                    chatSessions.set(sessionKey, true);
+                    console.log(`📁 Session set: ${sessionKey} = true`);
+                    
                     stream.markdown('# 📁 File Review Assistant\n\n');
                     stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
                     
@@ -180,6 +234,7 @@ function activate(context) {
                     
                     stream.markdown('\n\n');
                     stream.markdown(`**Question:** Do you want to review the file \`${fileName}\`?\n\n`);
+                    stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
                     return;
                 } else {
                     stream.markdown('# 📁 File Review Assistant\n\n');
