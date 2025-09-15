@@ -1,0 +1,45 @@
+# Files and folders to ignore when packaging the extension
+
+# Development files
+.vscode/**
+.git/**
+.gitignore
+
+# Documentation (keep README.md)
+PUBLISH.md
+*.log
+
+# Node modules (if any)
+node_modules/**
+
+# Build artifacts
+out/**
+dist/**
+
+# Test files
+test/**
+**/*.test.js
+**/*.test.ts
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/**
+*.swp
+*.swo
+*~
+
+# Source maps
+*.map
+
+# Coverage reports
+coverage/**
+
+# Local env files
+.env
+.env.local
+.env.*.local

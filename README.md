@@ -1,131 +1,148 @@
-# AI Self Check
+# 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/trongld230289/ai-self-check)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-green.svg)](https://code.visualstudio.com/)
+[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
-AI-powered code review extension for VS Code with intelligent chat participants and multiple AI model support.
+AI-powered code review extension with intelligent chat participants for automated code analysis and git change reviews.
 
 ## ✨ Features
 
-- 🤖 **@review-file**: Comprehensive AI analysis of current file
-- 📝 **@review-changes**: Smart review of git changes with detailed feedback  
-- 🧠 **Multiple AI Models**: Supports Claude, GPT-4, and intelligent fallback
-- 📊 **Smart Analysis**: Language-specific code analysis (TypeScript, JavaScript, Python, etc.)
-- ⚡ **Real-time Streaming**: Live AI responses with markdown formatting
-- 🎯 **Template-based**: Consistent review format with best practices
+### 🔍 **Intelligent Code Review**
+- **📄 File Review**: Comprehensive analysis of entire code files
+- **🔄 Git Changes Review**: Smart diff analysis for modified files
+- **🤖 AI-Powered Analysis**: Advanced code quality, security, and performance insights
+
+### 💬 **Chat Participants**
+- **@review-file**: 📄 Review current opening file or 🔗 specify file path
+- **@review-changes**: 🔄 Review changes for current opening file or 🔗 specify file path
+
+### 🛠️ **Context Menu Integration**
+- Right-click any supported file → **Review File**
+- Right-click any supported file → **Review Changes**
 
 ## 🚀 Quick Start
 
 ### Installation
+1. Open VS Code
+2. Go to Extensions (Ctrl+Shift+X)
+3. Search for "AI Self Check"
+4. Click Install
 
-1. **From VS Code Marketplace** (Recommended)
-   - Open VS Code Extensions (`Ctrl+Shift+X`)
-   - Search for "AI Self Check"
-   - Click "Install"
+### Usage
 
-2. **From VSIX Package**
-   ```bash
-   code --install-extension ai-self-check-1.0.1.vsix
-   ```
+#### **Method 1: Chat Participants (Recommended)**
+1. Open any code file
+2. Open VS Code Chat (Ctrl+Shift+I)
+3. Type `@review-file` + Enter → Reviews entire file automatically
+4. Type `@review-changes` + Enter → Reviews git changes automatically
 
-3. **From Source**
-   ```bash
-   git clone https://github.com/trongld230289/ai-self-check.git
-   cd ai-self-check
-   npm install
-   code --install-extension .
-   ```
+#### **Method 2: Context Menu**
+1. Right-click on any code file
+2. Select "Review File" or "Review Changes"
 
-## 📖 Usage
+#### **Method 3: Command Palette**
+1. Open Command Palette (Ctrl+Shift+P)
+2. Type "AI Self Check: Review File" or "AI Self Check: Review Changes"
 
-### Review Current File
-Open VS Code Chat (`Ctrl+Shift+I`) and type:
+## 📋 Supported File Types
+
+- **TypeScript/JavaScript**: `.ts`, `.js`, `.tsx`, `.jsx`
+- **Python**: `.py`
+- **Java**: `.java`
+- **C#**: `.cs`
+- **C/C++**: `.cpp`, `.c`
+- **PHP**: `.php`
+- **Ruby**: `.rb`
+- **Go**: `.go`
+- **Rust**: `.rs`
+- **Kotlin**: `.kt`
+- **Swift**: `.swift`
+
+## 🔧 Configuration
+
+### Azure DevOps Integration (Optional)
+Configure Azure DevOps for Pull Request reviews:
+
+```json
+{
+  "aiCodeReviewer.azureDevOps.personalAccessToken": "your-pat-token",
+  "aiCodeReviewer.azureDevOps.organization": "your-org-name",
+  "aiCodeReviewer.azureDevOps.defaultProject": "your-project-name"
+}
 ```
-@review-file
-```
 
-### Review Git Changes
-```
-@review-changes
-```
+**Required Permissions for PAT:**
+- Code: Read
+- Pull Request: Read
+
+## 📊 What You Get
+
+### 🔍 **File Review Analysis**
+- **Code Quality**: Best practices, code smells, maintainability
+- **Performance**: Optimization suggestions, bottleneck detection
+- **Security**: Vulnerability scanning, security best practices
+- **Architecture**: Design patterns, structure analysis
+- **Testing**: Test coverage suggestions, unit test recommendations
+
+### 🔄 **Git Changes Review**
+- **Change Impact**: Analysis of modifications and their effects
+- **Risk Assessment**: Potential issues with changes
+- **Security Review**: Security implications of modifications
+- **Performance Impact**: Performance considerations
+- **Rollback Suggestions**: Safe rollback strategies
+
+### 📈 **Scoring System**
+- **Overall Score**: 1-10 rating with detailed breakdown
+- **Category Ratings**: Individual scores for different aspects
+- **Actionable Recommendations**: Specific improvement suggestions
 
 ## 🎯 Example Output
 
-### File Review
 ```markdown
-# 📄 Code Review Analysis
+# 🔍 Code Review: app.component.ts
 
-## 📊 Overview
-- **File:** src/components/UserProfile.tsx
-- **Type:** TypeScript React Component
-- **Lines:** 156
+## 📋 Analysis Summary
+- **Code Quality**: ⭐⭐⭐⭐⭐ (5/5)
+- **Security**: ⭐⭐⭐⭐ (4/5)
+- **Performance**: ⭐⭐⭐⭐⭐ (5/5)
+- **Overall Score**: 9.2/10
 
-## ✅ Strengths
-- Clean component structure
-- Proper TypeScript types
-- Good error handling
+## 🚨 Issues Found
+1. **Warning**: Unused import detected
+2. **Info**: Consider adding error handling
 
-## ⚠️ Improvements
-- Consider memoization for expensive calculations
-- Add prop validation
-- Extract custom hooks
-
-## 🎯 Recommendations
-- Use React.memo() for performance
-- Add comprehensive unit tests
-```
-```
-## 🔧 Configuration
-
-Open VS Code Settings (`Ctrl+,`) and search for "AI Self Check":
-
-- **Azure DevOps Token**: Personal access token for PR reviews
-- **Organization**: Default Azure DevOps organization  
-- **Default Project**: Default project name
-
-## 🎨 Supported Languages
-
-- TypeScript/JavaScript (`.ts`, `.js`, `.tsx`, `.jsx`)
-- Python (`.py`)
-- Java (`.java`)
-- C# (`.cs`)
-- C/C++ (`.c`, `.cpp`)
-- PHP (`.php`)
-- Ruby (`.rb`)
-- Go (`.go`)
-- Rust (`.rs`)
-- Kotlin (`.kt`)
-- Swift (`.swift`)
-
-## 🛠️ Development
-
-### Building from Source
-```bash
-# Clone repository
-git clone https://github.com/trongld230289/ai-self-check.git
-cd ai-self-check
-
-# Install dependencies
-npm install
-
-# Package extension
-npx @vscode/vsce package
-
-# Install locally
-code --install-extension ai-self-check-1.0.1.vsix
+## 💡 Recommendations
+- Remove unused imports to reduce bundle size
+- Add try-catch blocks for async operations
 ```
 
-### Testing
-```bash
-npm test
-```
+## 🔄 Version History
 
-## 📋 Requirements
+### v1.0.4 (Current)
+- ✨ Enhanced chat participant descriptions with icons
+- 🔧 Improved auto-detection for current files
+- 📄 Updated documentation and README
+- 🐛 Bug fixes and performance improvements
 
-- **VS Code**: Version 1.90.0 or higher
-- **AI Models**: Claude, GPT-4, or compatible models available in VS Code
-- **Git**: For change detection and diff analysis
+### v1.0.3
+- 🆕 Added sticky chat participants
+- 🔄 Improved git changes detection
+- 🎨 Enhanced UI/UX
+
+### v1.0.2
+- 🔧 Added Azure DevOps integration
+- 📊 Enhanced scoring system
+- 🛡️ Improved security analysis
+
+### v1.0.1
+- 🐛 Initial bug fixes
+- 📝 Documentation improvements
+
+### v1.0.0
+- 🎉 Initial release
+- 🔍 Basic file and changes review
+- 💬 Chat participants implementation
 
 ## 🤝 Contributing
 
@@ -135,61 +152,24 @@ npm test
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/trongld230289/ai-self-check/issues)
+- **Email**: trongld232@gmail.com
+- **Repository**: [GitHub](https://github.com/trongld230289/ai-self-check)
+
+## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 👨‍💻 Author
-
-**Trong Le**
-- GitHub: [@trongld230289](https://github.com/trongld230289)
-- Email: trongld232@gmail.com
-
 ## 🙏 Acknowledgments
 
-- VS Code team for the excellent extension API
-- OpenAI and Anthropic for AI model capabilities
-- The open source community for inspiration
-
-## 📊 Stats
-
-![GitHub stars](https://img.shields.io/github/stars/trongld230289/ai-self-check?style=social)
-![GitHub forks](https://img.shields.io/github/forks/trongld230289/ai-self-check?style=social)
-![GitHub issues](https://img.shields.io/github/issues/trongld230289/ai-self-check)
+- VS Code Extension API
+- AI/ML integration for intelligent code analysis
+- Community feedback and contributions
 
 ---
 
-⭐ **Star this repo if you find it helpful!** ⭐
-```
+Made with ❤️ by [Trong Le](https://github.com/trongld230289)
 
-**Output:**
-```
-review-changes src/path/to/your/file.ts based on review-code.md
-```
-
-## Benefits
-
-✅ **No Hard-Coding**: Extension doesn't contain any analysis logic  
-✅ **Fully Customizable**: Edit `instructions/review-code.md` to customize reviews  
-✅ **Consistent Results**: Both commands follow the same template format  
-✅ **Simple**: Just converts commands to prompts, Copilot does the work  
-
-## Setup
-
-1. Edit `instructions/review-code.md` with your review guidelines
-2. Use `@review-file` or `@review-changes` in VS Code Chat
-3. Copy the generated prompt to a new chat for detailed review
-
-## Example Workflow
-
-1. Type: `@review-changes src/billing-list.component.ts`
-2. Extension shows: `review-changes src/billing-list.component.ts based on review-code.md`
-3. Copy prompt to new chat
-4. Get consistent review results based on your template
-
-## Customization
-
-To customize reviews, simply edit:
-- `instructions/review-code.md` - Your review template and guidelines
-
-No need to modify extension code!
+**Keywords**: AI, Code Review, VS Code Extension, Chat Participants, Git Analysis, TypeScript, JavaScript, Security Analysis, Performance Review
