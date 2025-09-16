@@ -23,6 +23,23 @@
 - 💡 **Solution**: [How to fix]
 - 🎯 **Impact**: [Why it matters]
 
+*** INTERNAL CHANGE EVALUATION (DO NOT DISPLAY) ***
+Silently evaluate this change on:
+- Code Quality: Rate 1-5 (5=excellent, 1=poor)
+- Security Impact: Rate 1-5 (5=no issues, 1=critical vulnerability)  
+- Performance Impact: Rate 1-5 (5=no impact/improvement, 1=major degradation)
+- Change Score: Calculate average of above three scores
+
+Based on Change Score:
+- IF Change Score >= 4/5: Skip recommendations and show "✅ **GOOD CHANGE** - No recommendations needed"
+- IF Change Score < 4/5: Show full recommendations below
+
+
+*** CONDITIONAL RECOMMENDATIONS (Only if Change Score < 4/5) ***
+IF Change Score >= 4/5: Skip this section and show "✅ **GOOD CHANGE** - No recommendations needed"
+
+IF Change Score < 4/5: Show recommendations below:
+
 *** RECOMMENDED FIX ***
 ```typescript
 [Show the improved/fixed code/comment in detail]
@@ -32,6 +49,30 @@
 ```typescript
 [Show recommended unit tests for the changes]
 ```
+
+---
+
+# 🎯 FINAL RECOMMENDATIONS
+
+## 🔥 APPROVAL STATUS: [APPROVE/REJECT/NEEDS_CHANGES]
+
+### 📋 SUMMARY
+- **Total Changes Reviewed**: [X]
+- **Critical Issues**: [X] 🚨
+- **Warnings**: [X] ⚠️
+- **Good Practices**: [X] ✅
+
+### 💡 ACTION ITEMS
+1. **HIGH PRIORITY** 🔴
+   - [List critical fixes needed]
+
+2. **MEDIUM PRIORITY** 🟡
+   - [List important improvements]
+
+3. **LOW PRIORITY** 🟢
+   - [List nice-to-have suggestions]
+
+---
 
 ### End Review
 
@@ -83,3 +124,34 @@
 ### Compliance Notes:
 - [Any regulatory compliance considerations]
 ```
+
+## MANDATORY SCORING AND FINAL RECOMMENDATIONS
+
+### Internal Overall Calculation (DO NOT DISPLAY):
+Silently calculate:
+- Average of all Change Scores (from internal evaluations above)
+- Overall Score = Average Change Score x 2 (to get score out of 10)
+
+### CONDITIONAL RECOMMENDATIONS:
+
+**IMPORTANT RULE: Check the Overall Score before generating recommendations:**
+
+**IF Overall Score >= 8:**
+- Only show: "✅ **APPROVED** - Code quality meets standards, safe to merge!"
+- DO NOT include any recommendations, checklists, or before/after merge sections
+
+**IF Overall Score < 8:**
+- Show full recommendations section below:
+
+#### Final Recommendations (Only show if score < 8)
+- **Approval Status**: [APPROVED/APPROVED WITH SUGGESTIONS/REJECT]
+
+#### Before Merge (Only show if score < 8):
+- [ ] [Specific action item 1]
+- [ ] [Specific action item 2]
+
+#### After Merge (Only show if score < 8):
+- [ ] [Monitoring item 1]  
+- [ ] [Documentation update needed]
+
+**REMEMBER: No recommendations section when Overall Score >= 8!**

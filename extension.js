@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-// Session tracking for "Enter twice" functionality
+// Session tracking for "Enter twice" functionality and change scores
 const chatSessions = new Map();
 
 /**
@@ -75,6 +75,7 @@ async function handleEnterTwiceLogic(participantType, activeEditor, stream, auto
     
     return false; // Don't continue, show question first
 }
+
 
 /**
  * @param {vscode.ExtensionContext} context
