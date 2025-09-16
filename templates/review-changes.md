@@ -14,7 +14,7 @@
 ```
 ## Change [X]: [ADDED/REMOVED/MODIFIED] - [Brief description]
 ```typescript
-[Show the exact code block, always show line number by line]
+[Show the exact code block, ALWAYS show line number by line in left side]
 ```
 
 *** REVIEW COMMENT ***
@@ -22,6 +22,7 @@
 - 📝 **Problem**: [What's wrong]
 - 💡 **Solution**: [How to fix]
 - 🎯 **Impact**: [Why it matters]
+
 
 *** INTERNAL CHANGE EVALUATION (DO NOT DISPLAY) ***
 Silently evaluate this change on:

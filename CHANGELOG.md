@@ -2,6 +2,18 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.9] - 2025-09-16
+
+### Enhanced
+- Improved template formatting with better visual highlighting for approval status
+- Enhanced conditional recommendations based on internal scoring
+- Optimized review output formatting with stronger visual cues
+- Better error handling and user feedback mechanisms
+
+### Fixed
+- Template rendering issues for review comment sections
+- Improved consistency in AI review output formatting
+
 ## [1.0.8] - 2025-09-16
 
 ### Changed

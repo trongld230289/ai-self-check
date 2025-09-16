@@ -1,6 +1,6 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.8-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.9-blue.svg)](https://github.com/trongld230289/ai-self-check)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -28,6 +28,8 @@ AI-powered code review extension with intelligent chat participants for automate
 2. Go to Extensions (Ctrl+Shift+X)
 3. Search for "AI Self Check"
 4. Click Install
+
+> **📝 First Run**: Templates will be automatically generated in `.vscode/extensions/ai-self-check/templates/` folder for customization.
 
 ### Usage
 
@@ -61,20 +63,25 @@ AI-powered code review extension with intelligent chat participants for automate
 
 ## 🔧 Configuration
 
-### Azure DevOps Integration (Optional)
-Configure Azure DevOps for Pull Request reviews:
+### 🎨 Template Customization
+When you run the extension for the first time, it automatically generates default templates in:
+- `.vscode/extensions/ai-self-check/templates/`
 
-```json
-{
-  "aiCodeReviewer.azureDevOps.personalAccessToken": "your-pat-token",
-  "aiCodeReviewer.azureDevOps.organization": "your-org-name",
-  "aiCodeReviewer.azureDevOps.defaultProject": "your-project-name"
-}
-```
+**Available Templates:**
+- `review-file.md` - Controls file review output format
+- `review-changes.md` - Controls git changes review output format
 
-**Required Permissions for PAT:**
-- Code: Read
-- Pull Request: Read
+**After generation, you can:**
+- ✏️ Edit templates to match your team's standards
+- 🎯 Customize review criteria and scoring
+- 🎨 Modify output formatting and structure
+- 📝 Add company-specific guidelines
+
+**Template Variables:**
+- `{fileName}` - Current file name
+- `{fileContent}` - File content
+- `{gitDiff}` - Git changes diff
+- Custom scoring logic and conditional recommendations
 
 ## 📊 What You Get
 
@@ -119,7 +126,13 @@ Configure Azure DevOps for Pull Request reviews:
 
 ## 🔄 Version History
 
-### v1.0.8 (Current)
+### v1.0.9 (Current)
+- Enhanced template formatting and conditional recommendations
+- Improved visual highlighting for approval status
+- Optimized AI review output formatting
+- Better error handling and user feedback
+
+### v1.0.8
 - Updated command naming from `aiCodeReviewer.*` to `aiSelfCheck.*`
 - Fixed right-click context menu functionality
 - Improved extension consistency and branding
