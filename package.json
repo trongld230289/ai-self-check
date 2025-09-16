@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "trongld232",
   "author": {
     "name": "Trong Le",
@@ -49,12 +49,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "aiCodeReviewer.reviewFile",
+        "command": "aiSelfCheck.reviewFile",
         "title": "Review File",
         "category": "AI Self Check"
       },
       {
-        "command": "aiCodeReviewer.reviewChanges",
+        "command": "aiSelfCheck.reviewChanges",
         "title": "Review Changes",
         "category": "AI Self Check"
       }
@@ -62,24 +62,24 @@
     "menus": {
       "editor/context": [
         {
-          "command": "aiCodeReviewer.reviewFile",
+          "command": "aiSelfCheck.reviewFile",
           "group": "navigation@1",
           "when": "editorTextFocus"
         },
         {
-          "command": "aiCodeReviewer.reviewChanges",
+          "command": "aiSelfCheck.reviewChanges",
           "group": "navigation@2",
           "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "aiCodeReviewer.reviewFile",
+          "command": "aiSelfCheck.reviewFile",
           "group": "navigation@1",
           "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
         },
         {
-          "command": "aiCodeReviewer.reviewChanges",
+          "command": "aiSelfCheck.reviewChanges",
           "group": "navigation@2",
           "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
         }
@@ -88,19 +88,19 @@
     "configuration": {
       "title": "AI Self Check",
       "properties": {
-        "aiCodeReviewer.azureDevOps.personalAccessToken": {
+        "aiSelfCheck.azureDevOps.personalAccessToken": {
           "type": "string",
           "default": "",
           "description": "Azure DevOps Personal Access Token for PR review (requires Code:Read and Pull Request:Read permissions)",
           "scope": "application"
         },
-        "aiCodeReviewer.azureDevOps.organization": {
+        "aiSelfCheck.azureDevOps.organization": {
           "type": "string",
           "default": "",
           "description": "Default Azure DevOps organization name",
           "scope": "application"
         },
-        "aiCodeReviewer.azureDevOps.defaultProject": {
+        "aiSelfCheck.azureDevOps.defaultProject": {
           "type": "string",
           "default": "",
           "description": "Default Azure DevOps project name",

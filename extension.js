@@ -73,6 +73,57 @@ function activate(context) {
         );
     });
 
+    // Register commands matching package.json (for right-click menu)
+    let reviewFile = vscode.commands.registerCommand('aiSelfCheck.reviewFile', async (uri) => {
+        console.log('🎯 Review File command called', uri);
+        try {
+            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+            if (uri && uri.fsPath) {
+                // Get relative path from workspace
+                const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+                let filePath = uri.fsPath;
+                if (workspaceFolder) {
+                    filePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+                }
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: `@review-file ${filePath}`
+                });
+            } else {
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: '@review-file'
+                });
+            }
+        } catch (error) {
+            console.error('Error in reviewFile command:', error);
+            vscode.window.showErrorMessage(`Failed to review file: ${error.message}`);
+        }
+    });
+
+    let reviewChanges = vscode.commands.registerCommand('aiSelfCheck.reviewChanges', async (uri) => {
+        console.log('🎯 Review Changes command called', uri);
+        try {
+            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+            if (uri && uri.fsPath) {
+                // Get relative path from workspace
+                const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+                let filePath = uri.fsPath;
+                if (workspaceFolder) {
+                    filePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+                }
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: `@review-changes ${filePath}`
+                });
+            } else {
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: '@review-changes'
+                });
+            }
+        } catch (error) {
+            console.error('Error in reviewChanges command:', error);
+            vscode.window.showErrorMessage(`Failed to review changes: ${error.message}`);
+        }
+    });
+
     // Register chat participants
     const reviewChangesParticipant = vscode.chat.createChatParticipant('review-changes', async (request, context, stream, token) => {
         try {
@@ -273,6 +324,8 @@ function activate(context) {
         confirmFileReview,
         showChangesHelp,
         showFileHelp,
+        reviewFile,
+        reviewChanges,
         reviewChangesParticipant, 
         reviewFileParticipant
     );
