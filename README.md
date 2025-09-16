@@ -1,6 +1,6 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.8-blue.svg)](https://github.com/trongld230289/ai-self-check)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -119,7 +119,10 @@ Configure Azure DevOps for Pull Request reviews:
 
 ## 🔄 Version History
 
-### v1.0.4 (Current)
+### v1.0.8 (Current)
+- Updated command naming from `aiCodeReviewer.*` to `aiSelfCheck.*`
+- Fixed right-click context menu functionality
+- Improved extension consistency and branding
 - ✨ Enhanced chat participant descriptions with icons
 - 🔧 Improved auto-detection for current files
 - 📄 Updated documentation and README

@@ -7,6 +7,76 @@ const { execSync } = require('child_process');
 const chatSessions = new Map();
 
 /**
+ * Handle "Enter twice" functionality for chat participants
+ * @param {string} participantType - 'review-file' or 'review-changes'
+ * @param {object} activeEditor - VS Code active editor
+ * @param {object} stream - Chat stream
+ * @param {function} autoReviewCallback - Function to call on second enter
+ * @returns {boolean} - true if handled (first enter), false if should proceed with auto review
+ */
+async function handleEnterTwiceLogic(participantType, activeEditor, stream, autoReviewCallback) {
+    const fileName = path.basename(activeEditor.document.fileName);
+    const sessionKey = `${participantType}-${activeEditor.document.fileName}`;
+    const hasSeenQuestion = chatSessions.get(sessionKey) || false;
+    
+    console.log(`🔍 Session check: ${sessionKey} = ${hasSeenQuestion}`);
+    
+    if (hasSeenQuestion) {
+        // Second Enter - Auto proceed like clicking "Yes"
+        const emoji = participantType === 'review-file' ? '📁' : '🔍';
+        const action = participantType === 'review-file' ? 'File' : 'Changes';
+        
+        stream.markdown(`# ${emoji} Reviewing ${action}: \`${fileName}\`\n\n`);
+        stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
+        stream.markdown(`🚀 **Starting ${action.toLowerCase()} review...**\n\n`);
+        
+        // Clear the session flag
+        chatSessions.delete(sessionKey);
+        
+        // Call the auto review function
+        await autoReviewCallback();
+        return true; // Handled, don't continue
+    }
+    
+    // First time - Show question and set session flag
+    chatSessions.set(sessionKey, true);
+    console.log(`🔍 Session set: ${sessionKey} = true`);
+    
+    const emoji = participantType === 'review-file' ? '📁' : '🔍';
+    const title = participantType === 'review-file' ? 'File Review Assistant' : 'Code Review Assistant';
+    const confirmCommand = participantType === 'review-file' ? 'reviewHelper.confirmFileReview' : 'reviewHelper.confirmChangesReview';
+    const helpCommand = participantType === 'review-file' ? 'reviewHelper.showFileHelp' : 'reviewHelper.showChangesHelp';
+    const buttonText = participantType === 'review-file' ? `✅ Yes, review file ${fileName}` : `✅ Yes, review changes in ${fileName}`;
+    const questionText = participantType === 'review-file' ? 
+        `**Question:** Do you want to review the file \`${fileName}\`?\n\n` :
+        `**Question:** Do you want to review git changes for \`${fileName}\`?\n\n`;
+    
+    stream.markdown(`# ${emoji} ${title}\n\n`);
+    stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
+    
+    // Create Yes/No buttons for confirmation
+    stream.button({
+        command: confirmCommand,
+        title: buttonText,
+        arguments: [activeEditor.document.fileName]
+    });
+    
+    stream.markdown('\n');
+    
+    stream.button({
+        command: helpCommand,
+        title: '❌ No, show help instead',
+        arguments: []
+    });
+    
+    stream.markdown('\n\n');
+    stream.markdown(questionText);
+    stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
+    
+    return false; // Don't continue, show question first
+}
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
@@ -144,53 +214,21 @@ function activate(context) {
                 // Check if there's an active file to review
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    const fileName = path.basename(activeEditor.document.fileName);
+                    // Use shared "Enter twice" logic
+                    const shouldContinue = await handleEnterTwiceLogic(
+                        'review-changes', 
+                        activeEditor, 
+                        stream, 
+                        async () => {
+                            // Auto review callback
+                            await handleFilePathChangesReview(activeEditor.document.fileName, stream, null, context, request);
+                        }
+                    );
                     
-                    // Check if user has seen the question before (second Enter)
-                    const sessionKey = `review-changes-${activeEditor.document.fileName}`;
-                    const hasSeenQuestion = chatSessions.get(sessionKey) || false;
-                    
-                    console.log(`🔍 Session check: ${sessionKey} = ${hasSeenQuestion}`);
-                    
-                    if (hasSeenQuestion) {
-                        // Second Enter - Auto proceed like clicking "Yes"
-                        stream.markdown(`# 🔍 Reviewing Changes: \`${fileName}\`\n\n`);
-                        stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
-                        stream.markdown('🚀 **Starting git changes review...**\n\n');
-                        
-                        // Clear the session flag
-                        chatSessions.delete(sessionKey);
-                        
-                        // Automatically review the current file's changes
-                        await handleFilePathChangesReview(activeEditor.document.fileName, stream, null, context, request);
-                        return;
+                    if (!shouldContinue) {
+                        return; // First enter, question shown
                     }
-                    
-                    // First time - Show question and set session flag
-                    chatSessions.set(sessionKey, true);
-                    console.log(`🔍 Session set: ${sessionKey} = true`);
-                    
-                    stream.markdown('# 🔍 Code Review Assistant\n\n');
-                    stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
-                    
-                    // Create Yes/No buttons for confirmation
-                    stream.button({
-                        command: 'reviewHelper.confirmChangesReview',
-                        title: `✅ Yes, review changes in ${fileName}`,
-                        arguments: [activeEditor.document.fileName]
-                    });
-                    
-                    stream.markdown('\n');
-                    
-                    stream.button({
-                        command: 'reviewHelper.showChangesHelp',
-                        title: '❌ No, show help instead',
-                        arguments: []
-                    });
-                    
-                    stream.markdown('\n\n');
-                    stream.markdown(`**Question:** Do you want to review git changes for \`${fileName}\`?\n\n`);
-                    stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
+                    // Second enter already handled in callback
                     return;
                 } else {
                     stream.markdown('# 🔍 Code Review Assistant\n\n');
@@ -239,53 +277,21 @@ function activate(context) {
                 // Check if there's an active file to review
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    const fileName = path.basename(activeEditor.document.fileName);
+                    // Use shared "Enter twice" logic
+                    const shouldContinue = await handleEnterTwiceLogic(
+                        'review-file', 
+                        activeEditor, 
+                        stream, 
+                        async () => {
+                            // Auto review callback
+                            await handleFilePathReview(activeEditor.document.fileName, stream, null, context);
+                        }
+                    );
                     
-                    // Check if user has seen the question before (second Enter)
-                    const sessionKey = `review-file-${activeEditor.document.fileName}`;
-                    const hasSeenQuestion = chatSessions.get(sessionKey) || false;
-                    
-                    console.log(`📁 Session check: ${sessionKey} = ${hasSeenQuestion}`);
-                    
-                    if (hasSeenQuestion) {
-                        // Second Enter - Auto proceed like clicking "Yes"
-                        stream.markdown(`# 📁 Reviewing File: \`${fileName}\`\n\n`);
-                        stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
-                        stream.markdown('🚀 **Starting full file review...**\n\n');
-                        
-                        // Clear the session flag
-                        chatSessions.delete(sessionKey);
-                        
-                        // Automatically review the current file
-                        await handleFilePathReview(activeEditor.document.fileName, stream, null, context);
-                        return;
+                    if (!shouldContinue) {
+                        return; // First enter, question shown
                     }
-                    
-                    // First time - Show question and set session flag
-                    chatSessions.set(sessionKey, true);
-                    console.log(`📁 Session set: ${sessionKey} = true`);
-                    
-                    stream.markdown('# 📁 File Review Assistant\n\n');
-                    stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
-                    
-                    // Create Yes/No buttons for confirmation
-                    stream.button({
-                        command: 'reviewHelper.confirmFileReview',
-                        title: `✅ Yes, review file ${fileName}`,
-                        arguments: [activeEditor.document.fileName]
-                    });
-                    
-                    stream.markdown('\n');
-                    
-                    stream.button({
-                        command: 'reviewHelper.showFileHelp',
-                        title: '❌ No, show help instead',
-                        arguments: []
-                    });
-                    
-                    stream.markdown('\n\n');
-                    stream.markdown(`**Question:** Do you want to review the file \`${fileName}\`?\n\n`);
-                    stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
+                    // Second enter already handled in callback
                     return;
                 } else {
                     stream.markdown('# 📁 File Review Assistant\n\n');

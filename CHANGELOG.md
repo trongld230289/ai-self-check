@@ -2,6 +2,18 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.8] - 2025-09-16
+
+### Changed
+- Updated command naming from `aiCodeReviewer.*` to `aiSelfCheck.*` for consistency
+- Fixed right-click context menu functionality in editor and explorer
+- Improved extension branding and command registration
+- Updated all documentation to reflect version 1.0.8
+
+### Fixed
+- Right-click "Review File" and "Review Changes" commands now work properly
+- Extension version display consistency across VS Code UI
+
 ## [1.0.2] - 2025-09-15
 
 ### Changed
