@@ -2,6 +2,19 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.10] - 2025-09-16
+
+### Optimized
+- Code cleanup and file size reduction by 44% (145KB → 81KB)
+- Template-driven instruction system for better maintainability
+- Consolidated review instructions from hardcoded text to template files
+- Improved separation of concerns between extension logic and review templates
+
+### Enhanced
+- Better user customization through centralized template instructions
+- Simplified codebase with template references instead of inline text
+- More maintainable architecture for future updates
+
 ## [1.0.9] - 2025-09-16
 
 ### Enhanced

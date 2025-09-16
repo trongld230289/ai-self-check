@@ -532,20 +532,13 @@ async function analyzeCodeSection(code, language, stream, requestedModel = null,
                 stream.markdown(`**Model:** \`${requestedModel.family}\` | **Language:** \`${language}\`\n\n`);
                 stream.markdown('⏳ **Connecting to AI model...**\n\n');
                 
-                const aiPrompt = `Please analyze this ${language} code and provide specific suggestions for improvement:
+                const aiPrompt = `Please analyze this ${language} code following the review-file.md template format:
 
 \`\`\`${language}
 ${code}
 \`\`\`
 
-Focus on:
-- Code quality and best practices
-- Potential bugs or issues
-- Performance optimizations
-- Security concerns
-- Maintainability improvements
-
-Provide actionable feedback with specific examples.`;
+Follow the template structure for comprehensive analysis.`;
 
                 const messages = [vscode.LanguageModelChatMessage.User(aiPrompt)];
                 
@@ -878,17 +871,7 @@ async function performInMemoryReview(reviewContent, diffContent, stream, changeT
 
 ${finalContent}
 
-Provide comprehensive analysis following the template structure with:
-
-1. **Change Summary** - Files modified, lines added/removed
-2. **Review Checklist** - Code quality, performance, security, testing, architecture, business logic
-3. **Critical Issues** - Must-fix problems with specific file locations
-4. **Warnings & Suggestions** - Medium priority improvements  
-5. **Impact Assessment** - Positive impact, risks, mitigation strategies
-6. **Final Recommendations** - Approval status, before/after merge actions
-7. **Overall Scoring** - Rate each category 1-5 stars with overall score out of 10
-
-Focus on real issues, security concerns, and actionable recommendations for this Angular TypeScript project. Provide specific code examples for improvements.`)
+Follow the template structure for comprehensive analysis.`)
         ];
         
         stream.markdown('🔄 **AI Analysis in progress...** (streaming git changes)\n\n');
@@ -1564,7 +1547,7 @@ async function reviewCurrentFileContent(filePath, stream, requestedModel = null,
 
             } else {
                 stream.markdown('⚠️ **Template not found** - using basic review\n\n');
-                reviewPrompt = `Please review this TypeScript Angular component file for code quality, best practices, security, and maintainability:
+                reviewPrompt = `Please review this TypeScript Angular component file:
 
 **File:** ${fileName}
 **Path:** ${filePath}
@@ -1573,15 +1556,7 @@ async function reviewCurrentFileContent(filePath, stream, requestedModel = null,
 ${content}
 \`\`\`
 
-Focus on:
-1. Code quality and organization
-2. Performance optimizations  
-3. Security considerations
-4. Best practices adherence
-5. Testing and maintainability
-6. Architecture improvements
-
-Provide specific examples and actionable recommendations.`;
+Provide comprehensive analysis with specific examples and actionable recommendations.`;
             }
 
             // Use unified model detection

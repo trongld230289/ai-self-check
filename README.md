@@ -1,6 +1,6 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.9-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.10-blue.svg)](https://github.com/trongld230289/ai-self-check)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -126,11 +126,19 @@ When you run the extension for the first time, it automatically generates defaul
 
 ## 🔄 Version History
 
-### v1.0.9 (Current)
+### v1.0.10 (Current)
+- Code cleanup and optimization - 44% file size reduction
+- Template-driven instruction system for better maintainability
+- Consolidated review instructions into template files
+- Improved user customization capabilities
+- Better separation of concerns between code and templates
+
+### v1.0.9
 - Enhanced template formatting and conditional recommendations
 - Improved visual highlighting for approval status
 - Optimized AI review output formatting
-- Better error handling and user feedback
+- Better error handling and user feedback mechanisms
+- Fixed template rendering issues for review comment sections
 
 ### v1.0.8
 - Updated command naming from `aiCodeReviewer.*` to `aiSelfCheck.*`
