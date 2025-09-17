@@ -4,6 +4,7 @@
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
   "version": "1.0.10",
   "publisher": "trongld232",
+  "icon": "extension-icon.png",
   "author": {
     "name": "Trong Le",
     "email": "trongld232@gmail.com"
