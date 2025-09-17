@@ -1,6 +1,6 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.10-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.11-blue.svg)](https://github.com/trongld230289/ai-self-check)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -16,6 +16,7 @@ AI-powered code review extension with intelligent chat participants for automate
 ### 💬 **Chat Participants**
 - **@review-file**: 📄 Review current opening file or 🔗 specify file path
 - **@review-changes**: 🔄 Review changes for current opening file or 🔗 specify file path
+- **@review-pr**: 🚀 Review Azure DevOps Pull Requests by URL or PR number
 
 ### 🛠️ **Context Menu Integration**
 - Right-click any supported file → **Review File**
@@ -38,6 +39,14 @@ AI-powered code review extension with intelligent chat participants for automate
 2. Open VS Code Chat (Ctrl+Shift+I)
 3. Type `@review-file` + Enter → Reviews entire file automatically
 4. Type `@review-changes` + Enter → Reviews git changes automatically
+5. Type `@review-pr https://dev.azure.com/org/project/_git/repo/pullrequest/123` → Reviews Azure DevOps PR
+
+#### **Azure DevOps PR Review Setup**
+1. Open Command Palette (Ctrl+Shift+P)
+2. Run "AI Self Check: Setup Azure DevOps Settings" 
+3. Enter your Azure DevOps Personal Access Token
+4. Configure organization, project, and repository
+5. Use `@review-pr` with PR URL or PR number
 
 #### **Method 2: Context Menu**
 1. Right-click on any code file
@@ -126,7 +135,16 @@ When you run the extension for the first time, it automatically generates defaul
 
 ## 🔄 Version History
 
-### v1.0.10 (Current)
+### v1.0.11 (Current)
+- 🌍 **Internationalization**: Fixed Vietnamese text with full English support
+- 🚀 **Azure DevOps PR Review**: Added @review-pr chat participant for Pull Request analysis
+- 📁 **File Detection**: Fixed issue showing folders instead of actual changed files
+- 🔧 **API Optimization**: Simplified Azure DevOps integration for better reliability
+- ✅ **Real Data**: Successfully fetching real Azure DevOps PR data instead of mock data
+- 🎯 **Accuracy**: Now correctly shows actual changed files from PRs
+- 📊 **Performance**: Streamlined API calls for faster operation
+
+### v1.0.10
 - Code cleanup and optimization - 44% file size reduction
 - Template-driven instruction system for better maintainability
 - Consolidated review instructions into template files

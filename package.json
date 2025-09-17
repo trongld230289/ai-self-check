@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "publisher": "trongld232",
   "icon": "extension-icon.png",
   "author": {
@@ -57,6 +57,16 @@
       {
         "command": "aiSelfCheck.reviewChanges",
         "title": "Review Changes",
+        "category": "AI Self Check"
+      },
+      {
+        "command": "aiSelfCheck.reviewPullRequest",
+        "title": "Review Azure DevOps PR",
+        "category": "AI Self Check"
+      },
+      {
+        "command": "aiSelfCheck.setupAzureDevOps",
+        "title": "Setup Azure DevOps Token",
         "category": "AI Self Check"
       }
     ],
@@ -120,6 +130,12 @@
         "id": "review-changes",
         "name": "review-changes",
         "description": "🔄 Review changes for current opening file  or 🔗 specify file path",
+        "isSticky": true
+      },
+      {
+        "id": "review-pr",
+        "name": "review-pr",
+        "description": "🔍 Review Azure DevOps Pull Request by PR ID or URL",
         "isSticky": true
       }
     ]

@@ -2,6 +2,20 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.11] - 2025-09-17
+
+### Fixed
+- 🌍 **Internationalization**: Replaced Vietnamese text with English in diff display
+- 🚀 **Azure DevOps PR Review**: Simplified and stabilized PR analysis approach
+- 📁 **File Detection**: Fixed issue where folders were shown instead of actual changed files
+- 🔧 **API Optimization**: Reverted to simple Azure DevOps Iterations API for better reliability
+
+### Enhanced
+- ✅ **Real Data**: Successfully fetching real Azure DevOps PR data instead of mock data
+- 🎯 **Accuracy**: Now correctly shows 4 actual changed files instead of 17 directories
+- 🌐 **Consistency**: Full English language support throughout the extension
+- 📊 **Performance**: Removed complex fallback approaches for faster and more reliable operation
+
 ## [1.0.10] - 2025-09-16
 
 ### Optimized
