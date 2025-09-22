@@ -1,6 +1,6 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.11-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.12-blue.svg)](https://github.com/trongld230289/ai-self-check)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -135,7 +135,14 @@ When you run the extension for the first time, it automatically generates defaul
 
 ## 🔄 Version History
 
-### v1.0.11 (Current)
+### v1.0.12 (Current)
+- 🔄 **Template System Refactoring**: Unified template loading with combined common + specific templates
+- 🎯 **Enhanced Model Fallback**: Improved quota limit detection and automatic model switching
+- 🛠️ **Code Modularization**: Extracted review-PR functionality to external scripts for better maintainability
+- ⚡ **Performance**: Reduced main extension size and eliminated duplicate template loading code
+- 🔧 **Error Handling**: Better messaging when AI models hit quota limits or become unavailable
+
+### v1.0.11
 - 🌍 **Internationalization**: Fixed Vietnamese text with full English support
 - 🚀 **Azure DevOps PR Review**: Added @review-pr chat participant for Pull Request analysis
 - 📁 **File Detection**: Fixed issue showing folders instead of actual changed files

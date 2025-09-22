@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "publisher": "trongld232",
   "icon": "extension-icon.png",
   "author": {

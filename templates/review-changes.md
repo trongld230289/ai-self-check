@@ -1,11 +1,5 @@
-# CODE REVIEW INSTRUCTION TEMPLATE
-
-## INSTRUCTION FOR AI REVIEWER:
-**ALWAYS follow this exact format for every code review, regardless of conversation context or previous reviews. This structure is MANDATORY and UNCHANGEABLE.**
-
-
 ### Review Entire File
-**Prompt:** `review-file [filename]`
+**Prompt:** `review-changes [filename]`
 - Reviews the complete file for all issues
 - Comprehensive analysis of entire codebase
 

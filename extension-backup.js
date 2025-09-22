@@ -2,6 +2,114 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const https = require('https');
+const { URL } = require('url');
+
+// Session tracking for "Enter twice" functionality and change scores
+const chatSessions = new Map();
+
+/**
+ * Handle "Enter twice" functionality for chat participants
+ * @param {string} participantType - 'review-file' or 'review-changes'
+ * @param {object} activeEditor - VS Code active editor
+ * @param {object} stream - Chat stream
+ * @param {function} autoReviewCallback - Function to call on second enter
+ * @returns {boolean} - true if handled (first enter), false if should proceed with auto review
+ */
+async function handleEnterTwiceLogic(participantType, activeEditor, stream, autoReviewCallback) {
+    const fileName = path.basename(activeEditor.document.fileName);
+    const sessionKey = `${participantType}-${activeEditor.document.fileName}`;
+    const hasSeenQuestion = chatSessions.get(sessionKey) || false;
+    
+    console.log(`🔍 Session check: ${sessionKey} = ${hasSeenQuestion}`);
+    
+    if (hasSeenQuestion) {
+        // Second Enter - Auto proceed like clicking "Yes"
+        const emoji = participantType === 'review-file' ? '📁' : '🔍';
+        const action = participantType === 'review-file' ? 'File' : 'Changes';
+        
+        stream.markdown(`# ${emoji} Reviewing ${action}: \`${fileName}\`\n\n`);
+        stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
+        stream.markdown(`🚀 **Starting ${action.toLowerCase()} review...**\n\n`);
+        
+        // Clear the session flag
+        chatSessions.delete(sessionKey);
+        
+        // Call the auto review function
+        await autoReviewCallback();
+        return true; // Handled, don't continue
+    }
+    
+    // First time - Show question and set session flag
+    chatSessions.set(sessionKey, true);
+    console.log(`🔍 Session set: ${sessionKey} = true`);
+    
+    const emoji = participantType === 'review-file' ? '📁' : '🔍';
+    const title = participantType === 'review-file' ? 'File Review Assistant' : 'Code Review Assistant';
+    const confirmCommand = participantType === 'review-file' ? 'aiSelfCheck.confirmFileReview' : 'aiSelfCheck.confirmChangesReview';
+    const helpCommand = participantType === 'review-file' ? 'aiSelfCheck.showFileHelp' : 'aiSelfCheck.showChangesHelp';
+    const buttonText = participantType === 'review-file' ? `✅ Yes, review file ${fileName}` : `✅ Yes, review changes in ${fileName}`;
+    const questionText = participantType === 'review-file' ? 
+        `**Question:** Do you want to review the file \`${fileName}\`?\n\n` :
+        `**Question:** Do you want to review git changes for \`${fileName}\`?\n\n`;
+    
+    stream.markdown(`# ${emoji} ${title}\n\n`);
+    stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
+    
+    // Create Yes/No buttons for confirmation
+    stream.button({
+        command: confirmCommand,
+        title: buttonText,
+        arguments: [activeEditor.document.fileName]
+    });
+    
+    stream.markdown('\n');
+    
+    stream.button({
+        command: helpCommand,
+        title: '❌ No, show help instead',
+        arguments: []
+    });
+    
+    stream.markdown('\n\n');
+    stream.markdown(questionText);
+    stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
+    
+    return false; // Don't continue, show question first
+}
+
+/**
+ * Setup Azure DevOps settings automatically
+ */
+async function setupAzureDevOpsSettings() {
+    try {
+        // Open User Settings JSON
+        await vscode.commands.executeCommand('workbench.action.openSettingsJson');
+        
+        // Show info message with instructions
+        const settingsTemplate = `{
+    "aiSelfCheck.azureDevOps.personalAccessToken": "YOUR_TOKEN_HERE",
+    "aiSelfCheck.azureDevOps.organization": "BusinessWebUS",
+    "aiSelfCheck.azureDevOps.defaultProject": "Shippo"
+}`;
+        
+        const action = await vscode.window.showInformationMessage(
+            'Settings JSON opened. Copy và paste template below vào cuối file (trước dấu }).',
+            'Copy Template',
+            'Open Azure DevOps'
+        );
+        
+        if (action === 'Copy Template') {
+            await vscode.env.clipboard.writeText(settingsTemplate);
+            vscode.window.showInformationMessage('Template đã copy vào clipboard!');
+        } else if (action === 'Open Azure DevOps') {
+            await vscode.env.openExternal(vscode.Uri.parse('https://dev.azure.com/BusinessWebUS/_usersSettings/tokens'));
+        }
+        
+    } catch (error) {
+        vscode.window.showErrorMessage(`Error opening settings: ${error.message}`);
+    }
+}
 
 /**
  * @param {vscode.ExtensionContext} context
@@ -13,20 +121,25 @@ function activate(context) {
     ensureTemplatesExist(context);
 
     // Register new commands for different review modes
-    let reviewGitChanges = vscode.commands.registerCommand('reviewHelper.reviewGitChanges', async () => {
+    let reviewGitChanges = vscode.commands.registerCommand('aiSelfCheck.reviewGitChanges', async () => {
         await reviewCurrentGitChanges();
     });
 
-    let reviewActiveFile = vscode.commands.registerCommand('reviewHelper.reviewActiveFile', async () => {
+    let reviewActiveFile = vscode.commands.registerCommand('aiSelfCheck.reviewActiveFile', async () => {
         await reviewActiveEditor();
     });
 
-    let reviewWorkspace = vscode.commands.registerCommand('reviewHelper.reviewWorkspace', async () => {
+    let reviewWorkspace = vscode.commands.registerCommand('aiSelfCheck.reviewWorkspace', async () => {
         await reviewWorkspaceChanges();
     });
 
+    // Register Azure DevOps setup command
+    let setupAzureDevOps = vscode.commands.registerCommand('aiSelfCheck.setupAzureDevOps', async () => {
+        await setupAzureDevOpsSettings();
+    });
+
     // Register confirmation commands for chat buttons
-    let confirmChangesReview = vscode.commands.registerCommand('reviewHelper.confirmChangesReview', async (filePath) => {
+    let confirmChangesReview = vscode.commands.registerCommand('aiSelfCheck.confirmChangesReview', async (filePath) => {
         // Open chat and trigger changes review for the specific file
         await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
         // Send the file path to @review-changes
@@ -35,7 +148,7 @@ function activate(context) {
         });
     });
 
-    let confirmFileReview = vscode.commands.registerCommand('reviewHelper.confirmFileReview', async (filePath) => {
+    let confirmFileReview = vscode.commands.registerCommand('aiSelfCheck.confirmFileReview', async (filePath) => {
         // Open chat and trigger file review for the specific file
         await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
         // Send the file path to @review-file
@@ -44,7 +157,7 @@ function activate(context) {
         });
     });
 
-    let showChangesHelp = vscode.commands.registerCommand('reviewHelper.showChangesHelp', async () => {
+    let showChangesHelp = vscode.commands.registerCommand('aiSelfCheck.showChangesHelp', async () => {
         vscode.window.showInformationMessage(
             'Code Review Helper - @review-changes',
             {
@@ -57,7 +170,7 @@ function activate(context) {
         );
     });
 
-    let showFileHelp = vscode.commands.registerCommand('reviewHelper.showFileHelp', async () => {
+    let showFileHelp = vscode.commands.registerCommand('aiSelfCheck.showFileHelp', async () => {
         vscode.window.showInformationMessage(
             'Code Review Helper - @review-file', 
             {
@@ -68,6 +181,57 @@ function activate(context) {
 • Use @review-changes to review only git changes instead of entire file`
             }
         );
+    });
+
+    // Register commands matching package.json (for right-click menu)
+    let reviewFile = vscode.commands.registerCommand('aiSelfCheck.reviewFile', async (uri) => {
+        console.log('🎯 Review File command called', uri);
+        try {
+            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+            if (uri && uri.fsPath) {
+                // Get relative path from workspace
+                const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+                let filePath = uri.fsPath;
+                if (workspaceFolder) {
+                    filePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+                }
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: `@review-file ${filePath}`
+                });
+            } else {
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: '@review-file'
+                });
+            }
+        } catch (error) {
+            console.error('Error in reviewFile command:', error);
+            vscode.window.showErrorMessage(`Failed to review file: ${error.message}`);
+        }
+    });
+
+    let reviewChanges = vscode.commands.registerCommand('aiSelfCheck.reviewChanges', async (uri) => {
+        console.log('🎯 Review Changes command called', uri);
+        try {
+            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+            if (uri && uri.fsPath) {
+                // Get relative path from workspace
+                const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+                let filePath = uri.fsPath;
+                if (workspaceFolder) {
+                    filePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+                }
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: `@review-changes ${filePath}`
+                });
+            } else {
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: '@review-changes'
+                });
+            }
+        } catch (error) {
+            console.error('Error in reviewChanges command:', error);
+            vscode.window.showErrorMessage(`Failed to review changes: ${error.message}`);
+        }
     });
 
     // Register chat participants
@@ -90,27 +254,21 @@ function activate(context) {
                 // Check if there's an active file to review
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    const fileName = path.basename(activeEditor.document.fileName);
-                    stream.markdown('# 🔍 Code Review Assistant\n\n');
-                    stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
+                    // Use shared "Enter twice" logic
+                    const shouldContinue = await handleEnterTwiceLogic(
+                        'review-changes', 
+                        activeEditor, 
+                        stream, 
+                        async () => {
+                            // Auto review callback
+                            await handleFilePathChangesReview(activeEditor.document.fileName, stream, null, context, request);
+                        }
+                    );
                     
-                    // Create Yes/No buttons for confirmation
-                    stream.button({
-                        command: 'reviewHelper.confirmChangesReview',
-                        title: `✅ Yes, review changes in ${fileName}`,
-                        arguments: [activeEditor.document.fileName]
-                    });
-                    
-                    stream.markdown('\n');
-                    
-                    stream.button({
-                        command: 'reviewHelper.showChangesHelp',
-                        title: '❌ No, show help instead',
-                        arguments: []
-                    });
-                    
-                    stream.markdown('\n\n');
-                    stream.markdown(`**Question:** Do you want to review git changes for \`${fileName}\`?\n\n`);
+                    if (!shouldContinue) {
+                        return; // First enter, question shown
+                    }
+                    // Second enter already handled in callback
                     return;
                 } else {
                     stream.markdown('# 🔍 Code Review Assistant\n\n');
@@ -127,7 +285,7 @@ function activate(context) {
                 await handleFilePathChangesReview(input, stream, null, context, request);
             } else {
                 // Default behavior - review git changes
-                await handleInstructionReview(stream, null, context, request);
+                await handleActiveFileChangesReview(stream, null, context, request);
             }
             
         } catch (error) {
@@ -159,27 +317,21 @@ function activate(context) {
                 // Check if there's an active file to review
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    const fileName = path.basename(activeEditor.document.fileName);
-                    stream.markdown('# 📁 File Review Assistant\n\n');
-                    stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
+                    // Use shared "Enter twice" logic
+                    const shouldContinue = await handleEnterTwiceLogic(
+                        'review-file', 
+                        activeEditor, 
+                        stream, 
+                        async () => {
+                            // Auto review callback
+                            await handleFilePathReview(activeEditor.document.fileName, stream, null, context);
+                        }
+                    );
                     
-                    // Create Yes/No buttons for confirmation
-                    stream.button({
-                        command: 'reviewHelper.confirmFileReview',
-                        title: `✅ Yes, review file ${fileName}`,
-                        arguments: [activeEditor.document.fileName]
-                    });
-                    
-                    stream.markdown('\n');
-                    
-                    stream.button({
-                        command: 'reviewHelper.showFileHelp',
-                        title: '❌ No, show help instead',
-                        arguments: []
-                    });
-                    
-                    stream.markdown('\n\n');
-                    stream.markdown(`**Question:** Do you want to review the file \`${fileName}\`?\n\n`);
+                    if (!shouldContinue) {
+                        return; // First enter, question shown
+                    }
+                    // Second enter already handled in callback
                     return;
                 } else {
                     stream.markdown('# 📁 File Review Assistant\n\n');
@@ -210,52 +362,26 @@ function activate(context) {
     reviewChangesParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icon.svg'));
     reviewFileParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icon.svg'));
 
-    // #region Azure DevOps PR Review Feature - DISABLED
-    /*
-    // Register Azure DevOps PR Review chat participant
-    const reviewPRParticipant = vscode.chat.createChatParticipant('review-pr', async (request, context, stream, token) => {
-        try {
-            const prUrl = request.prompt.trim();
-            
-            if (!prUrl.includes('dev.azure.com')) {
-                stream.markdown('❌ **Invalid URL:** Please provide an Azure DevOps PR URL\n\n');
-                stream.markdown('**Example Usage:**\n');
-                stream.markdown('```\n@review-pr https://dev.azure.com/myorg/myproject/_git/myrepo/pullrequest/123\n```\n\n');
-                stream.markdown('**Setup Instructions:**\n');
-                stream.markdown('1. Configure your Azure DevOps Personal Access Token in VS Code Settings\n');
-                stream.markdown('2. Go to Settings (Ctrl/Cmd + ,) → Search "azure devops"\n');
-                stream.markdown('3. Set your token and organization details\n\n');
-                return;
-            }
-            
-            await handleAzureDevOpsPRReview(prUrl, stream, context, request);
-            
-        } catch (error) {
-            stream.markdown(`❌ **Error:** ${error.message}\n\n`);
-            stream.markdown('**Common Issues:**\n');
-            stream.markdown('- Invalid Personal Access Token\n');
-            stream.markdown('- Insufficient permissions (need Code: Read, Pull Request: Read)\n');
-            stream.markdown('- Invalid PR URL format\n');
-            stream.markdown('- Network connectivity issues\n\n');
-            console.error('Azure DevOps PR Review error:', error);
-        }
-    });
-    
-    reviewPRParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icon.svg'));
-    */
-    // #endregion Azure DevOps PR Review Feature - DISABLED
+    // Initialize PR review functionality from external script
+    const prReview = require('./scripts/review-pr');
+    const { reviewPrParticipant, reviewPullRequest } = prReview.initializePrReview(context);
 
     context.subscriptions.push(
         reviewGitChanges, 
         reviewActiveFile, 
         reviewWorkspace, 
+        setupAzureDevOps,
         confirmChangesReview,
         confirmFileReview,
         showChangesHelp,
         showFileHelp,
+        reviewFile,
+        reviewChanges,
         reviewChangesParticipant, 
         reviewFileParticipant,
-        // reviewPRParticipant
+        reviewPrParticipant,
+        reviewPullRequest,
+        reviewPrParticipant
     );
 }
 
@@ -398,7 +524,7 @@ async function handleActiveFileReview(stream, requestedModel = null, context = n
             }
         } else {
             // For full file review, use consistent file review function
-            await reviewCurrentFileContent(document.fileName, stream, requestedModel, context);
+            await reviewFileContent(document.fileName, stream, requestedModel, context);
         }
         
     } catch (error) {
@@ -453,20 +579,13 @@ async function analyzeCodeSection(code, language, stream, requestedModel = null,
                 stream.markdown(`**Model:** \`${requestedModel.family}\` | **Language:** \`${language}\`\n\n`);
                 stream.markdown('⏳ **Connecting to AI model...**\n\n');
                 
-                const aiPrompt = `Please analyze this ${language} code and provide specific suggestions for improvement:
+                const aiPrompt = `Please analyze this ${language} code following the review-file.md template format:
 
 \`\`\`${language}
 ${code}
 \`\`\`
 
-Focus on:
-- Code quality and best practices
-- Potential bugs or issues
-- Performance optimizations
-- Security concerns
-- Maintainability improvements
-
-Provide actionable feedback with specific examples.`;
+Follow the template structure for comprehensive analysis.`;
 
                 const messages = [vscode.LanguageModelChatMessage.User(aiPrompt)];
                 
@@ -528,7 +647,7 @@ function analyzeTypeScriptCode(code, stream) {
     }
 }
 
-async function handleInstructionReview(stream, selectedModel = null, context = null, request = null) {
+async function handleActiveFileChangesReview(stream, selectedModel = null, context = null, request = null) {
     try {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -681,6 +800,55 @@ async function getFallbackModel(currentModel, stream, attemptNumber = 1) {
     }
 }
 
+/**
+ * Get review template (simplified - templates already combined in workspace)
+ * @param {string} templateName - Name of template file (e.g., 'review-changes.md')
+ * @param {object} context - VS Code extension context
+ * @returns {object} - {content: string, source: string, path: string}
+ */
+function getReviewTemplate(templateName, context = null) {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    
+    // Determine template paths - workspace first, then extension fallback
+    let templatePath, templateSource;
+    
+    if (workspaceFolder) {
+        templatePath = path.join(workspaceFolder.uri.fsPath, 'instructions', templateName);
+        templateSource = 'workspace';
+        
+        // If workspace template doesn't exist, try extension templates
+        if (!fs.existsSync(templatePath) && context) {
+            templatePath = path.join(context.extensionPath, 'templates', templateName);
+            templateSource = 'extension';
+        }
+    } else if (context) {
+        // No workspace, use extension templates directly
+        templatePath = path.join(context.extensionPath, 'templates', templateName);
+        templateSource = 'extension';
+    } else {
+        throw new Error('No workspace folder or extension context available');
+    }
+    
+    try {
+        if (fs.existsSync(templatePath)) {
+            const content = fs.readFileSync(templatePath, 'utf8');
+            console.log(`✅ Loaded template from: ${templatePath}`);
+            
+            return {
+                content: content,
+                source: templateSource,
+                path: templatePath
+            };
+        } else {
+            throw new Error(`Template not found at: ${templatePath}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Template loading error:', error);
+        throw new Error(`Failed to load template: ${error.message}`);
+    }
+}
+
 // New In-Memory Template Review Function
 async function reviewWithInMemoryTemplate(diffContent, stream, changeType = 'Changes', selectedModel = null, context = null, request = null) {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -695,45 +863,9 @@ async function reviewWithInMemoryTemplate(diffContent, stream, changeType = 'Cha
     }
     
     try {
-        // Load instruction template
-        let instructionTemplate = '';
-        if (fs.existsSync(instructionPath)) {
-            instructionTemplate = fs.readFileSync(instructionPath, 'utf8');
-        } else {
-            stream.markdown('⚠️ **Template not found:** - using basic review\n');
-            await reviewDiffWithChecklist(diffContent, stream, changeType);
-            return;
-        }
-
-        // Replace placeholder with actual diff in memory
-        let reviewContent = instructionTemplate.replace(
-            /```diff\s*\n# Paste git diff here\s*\n```/,
-            `\`\`\`diff\n${diffContent}\n\`\`\``
-        );
-
-        // Check if replacement worked, if not try alternative patterns
-        if (reviewContent === instructionTemplate) {
-            // Try simpler pattern
-            reviewContent = instructionTemplate.replace(
-                '# Paste git diff here',
-                diffContent
-            );
-        }
-
-        // Try another pattern if still not replaced
-        if (reviewContent === instructionTemplate) {
-            // Try finding the diff section marker
-            reviewContent = instructionTemplate.replace(
-                /# Paste git diff here/g,
-                diffContent
-            );
-        }
-
-        stream.markdown('---\n\n');
-
         // Parse the completed instruction content and perform review
         if (reviewContent !== instructionTemplate) {
-            await performInMemoryReview(reviewContent, diffContent, stream, changeType, selectedModel, context, request);
+            await reviewChanges(diffContent, stream, changeType, selectedModel, context, request);
         } else {
             // Fallback to basic review if template replacement failed
             stream.markdown('⚠️ **Template replacement failed - using basic review**\n\n');
@@ -748,21 +880,16 @@ async function reviewWithInMemoryTemplate(diffContent, stream, changeType = 'Cha
 }
 
 // SIMPLIFIED: Direct template-based approach without command conflicts
-async function performInMemoryReview(reviewContent, diffContent, stream, changeType, selectedModel = null, context = null, request = null) {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    
-    // Try workspace instructions first, then fallback to extension templates
-    let templatePath = path.join(workspaceFolder.uri.fsPath, 'instructions', 'review-changes.md');
-    let templateSource = 'workspace';
-    
-    if (!fs.existsSync(templatePath) && context) {
-        templatePath = path.join(context.extensionPath, 'templates', 'review-changes.md');
-        templateSource = 'extension';
-    }
-    
+async function reviewChanges(diffContent, stream, changeType, selectedModel = null, context = null, request = null) {
     let templateContent;
+    
     try {
-        templateContent = fs.readFileSync(templatePath, 'utf8');
+        // Use simplified template loading function
+        const templateResult = getReviewTemplate('review-changes.md', context);
+        templateContent = templateResult.content;
+        
+        console.log(`✅ Loaded review template from: ${templateResult.source} (${templateResult.content.length} characters)`);
+        
     } catch (error) {
         stream.markdown('❌ **Error**: Could not load review template\n');
         stream.markdown(`Error: ${error.message}\n`);
@@ -795,33 +922,9 @@ async function performInMemoryReview(reviewContent, diffContent, stream, changeT
         }
             
         const messages = [
-            vscode.LanguageModelChatMessage.User(`You are a code reviewer analyzing an Azure DevOps Pull Request. Review the provided diff information and give a concise assessment.
-
-DIFF CONTENT:
-${diffContent}
-
-**Format your response EXACTLY like this:**
-
-## 📝 REVIEW SUMMARY
-
-**Files Modified:**
-• [Only list actual changed files with extensions, NOT folders]
-• [One file per line with full path]
-• [Example: src/app/component.ts]
-
-**Commit Analysis (Based on Messages):**
-1. **Brief description** - What was changed
-2. **Brief description** - What was changed  
-3. **Brief description** - What was changed
-
-**Quick Assessment:**
-- ✅ Positive aspects (1-2 points)
-- ⚠️ Concerns (1-2 points)  
-- 🎯 Recommendations (1-2 points)
-
-**Score: X/10**
-
-Keep it simple - analyze the diff data and provide a concise summary.`)
+            vscode.LanguageModelChatMessage.User(`You are a senior code reviewer. Analyze this git diff following the review-changes.md template format:
+            ${finalContent}
+            Follow the template structure for comprehensive analysis.`)
         ];
         
         stream.markdown('🔄 **AI Analysis in progress...** (streaming git changes)\n\n');
@@ -909,7 +1012,7 @@ Keep it simple - analyze the diff data and provide a concise summary.`)
 async function reviewDiffWithChecklist(diffContent, stream, changeType) {
     
     // 1. Summary (as per instruction format)
-    stream.markdown('### � Summary\n\n');
+    stream.markdown('###   Summary\n\n');
     stream.markdown(`**Overall Impact:** Changes affect ${analysis.filesChanged.size} file(s) with ${analysis.linesAdded} additions and ${analysis.linesRemoved} deletions.\n\n`);
     
     if (analysis.checklist.correctness.issues.some(issue => issue.includes('CRITICAL'))) {
@@ -1426,7 +1529,7 @@ async function handleFilePathReview(filePath, stream, requestedModel = null, con
         }
 
         // Always perform file content review (not git diff)
-        await reviewCurrentFileContent(cleanPath, stream, requestedModel, context);
+        await reviewFileContent(cleanPath, stream, requestedModel, context);
 
     } catch (error) {
         stream.markdown(`❌ Error reviewing file: ${error.message}`);
@@ -1448,23 +1551,24 @@ async function reviewFileWithDiff(gitDiff, filePath, stream, changeType, context
     displayReviewHeader(stream, 'Changes Review', filePath, gitDiff.length, templatePath);
     
     // Use the same in-memory template review as other functions
-    await reviewWithInMemoryTemplate(gitDiff, stream, changeType, null, context, request);
+    // await reviewWithInMemoryTemplate(gitDiff, stream, changeType, null, context, request);
+    await reviewChanges(gitDiff, stream, changeType, null, context, request);
 }
 
-async function reviewCurrentFileContent(filePath, stream, requestedModel = null, context = null) {
+async function reviewFileContent(filePath, stream, requestedModel = null, context = null) {
     try {
         const content = fs.readFileSync(filePath, 'utf8');
         const fileExtension = path.extname(filePath);
         const fileName = path.basename(filePath);
         
         // Determine template path for header display
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         let templatePath = null;
-        if (workspaceFolder) {
-            templatePath = path.join(workspaceFolder.uri.fsPath, 'instructions', 'review-file.md');
-            if (!fs.existsSync(templatePath) && context) {
-                templatePath = path.join(context.extensionPath, 'templates', 'review-file.md');
-            }
+        try {
+            const templateResult = getReviewTemplate('review-file.md', context);
+            templatePath = templateResult.path;
+        } catch (error) {
+            // Template not found, use default display
+            console.log('Template path detection failed:', error.message);
         }
         
         // Use reusable header display function
@@ -1479,9 +1583,12 @@ async function reviewCurrentFileContent(filePath, stream, requestedModel = null,
         try {
             let reviewPrompt = '';
             
-            // Load file review template if exists
-            if (templatePath && fs.existsSync(templatePath)) {
-                const template = fs.readFileSync(templatePath, 'utf8');
+            // Use simplified template loading function
+            try {
+                const templateResult = getReviewTemplate('review-file.md', context);
+                let template = templateResult.content;
+                
+                console.log(`✅ Loaded file review template from: ${templateResult.source} (${template.length} characters)`);
                 
                 // Replace template placeholders with actual file information
                 let processedTemplate = template
@@ -1495,9 +1602,10 @@ async function reviewCurrentFileContent(filePath, stream, requestedModel = null,
                 // Use template content directly as prompt
                 reviewPrompt = processedTemplate;
 
-            } else {
+            } catch (templateError) {
                 stream.markdown('⚠️ **Template not found** - using basic review\n\n');
-                reviewPrompt = `Please review this TypeScript Angular component file for code quality, best practices, security, and maintainability:
+                console.log(`⚠️ Template loading failed: ${templateError.message}`);
+                reviewPrompt = `Please review this TypeScript Angular component file:
 
 **File:** ${fileName}
 **Path:** ${filePath}
@@ -1506,15 +1614,7 @@ async function reviewCurrentFileContent(filePath, stream, requestedModel = null,
 ${content}
 \`\`\`
 
-Focus on:
-1. Code quality and organization
-2. Performance optimizations  
-3. Security considerations
-4. Best practices adherence
-5. Testing and maintainability
-6. Architecture improvements
-
-Provide specific examples and actionable recommendations.`;
+Provide comprehensive analysis with specific examples and actionable recommendations.`;
             }
 
             // Use unified model detection
@@ -1763,9 +1863,9 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
     return finalModel;
 }
 
-
 /**
  * Ensures templates exist in workspace instructions folder
+ * Combines common template with specific templates before copying
  * @param {vscode.ExtensionContext} context
  */
 async function ensureTemplatesExist(context) {
@@ -1785,7 +1885,7 @@ async function ensureTemplatesExist(context) {
             console.log('Created instructions folder:', instructionsPath);
         }
 
-        // Copy templates if they don't exist
+        // Template files to process (no need to copy review-common.md)
         const templateFiles = ['review-file.md', 'review-changes.md'];
         
         for (const templateFile of templateFiles) {
@@ -1794,8 +1894,54 @@ async function ensureTemplatesExist(context) {
             
             // Only copy if destination doesn't exist (don't overwrite user customizations)
             if (!fs.existsSync(destPath) && fs.existsSync(sourcePath)) {
-                fs.copyFileSync(sourcePath, destPath);
-                console.log(`Generated template: ${templateFile}`);
+                
+                // For all templates, combine with common template
+                try {
+                    // Temporarily use extension context to get combined template
+                    const tempContext = { extensionPath: context.extensionPath };
+                    
+                    // Create a temporary getReviewTemplate that works with extension templates only
+                    const getExtensionTemplate = (mainTemplateName) => {
+                        const mainTemplatePath = path.join(extensionTemplatesPath, mainTemplateName);
+                        const commonTemplatePath = path.join(extensionTemplatesPath, 'review-common.md');
+                        
+                        let commonContent = '';
+                        let mainContent = '';
+                        
+                        // Load common template if exists
+                        if (fs.existsSync(commonTemplatePath)) {
+                            commonContent = fs.readFileSync(commonTemplatePath, 'utf8');
+                            console.log(`✅ Loaded common template for combination: ${commonTemplatePath}`);
+                        }
+                        
+                        // Load main template
+                        if (fs.existsSync(mainTemplatePath)) {
+                            mainContent = fs.readFileSync(mainTemplatePath, 'utf8');
+                            console.log(`✅ Loaded main template for combination: ${mainTemplatePath}`);
+                        } else {
+                            throw new Error(`Main template not found: ${mainTemplatePath}`);
+                        }
+                        
+                        // Combine templates: common + main
+                        const combinedContent = commonContent + '\n\n' + mainContent;
+                        console.log(`✅ Combined templates for copy: ${commonContent.length} + ${mainContent.length} = ${combinedContent.length} characters`);
+                        
+                        return combinedContent;
+                    };
+                    
+                    // Get combined content
+                    const combinedContent = getExtensionTemplate(templateFile);
+                    
+                    // Write combined content to destination
+                    fs.writeFileSync(destPath, combinedContent, 'utf8');
+                    console.log(`Generated combined template: ${templateFile} (${combinedContent.length} characters)`);
+                    
+                } catch (combineError) {
+                    console.log(`⚠️ Failed to combine template ${templateFile}, copying as-is:`, combineError.message);
+                    // Fallback to simple copy
+                    fs.copyFileSync(sourcePath, destPath);
+                    console.log(`Generated template (fallback): ${templateFile}`);
+                }
             }
         }
         
@@ -1830,1369 +1976,6 @@ function displayReviewHeader(stream, reviewType, filePath, diffLength = null, te
             stream.markdown(`**Template used:** ${templateDir}/${templateFile}\n\n`);
         }
     }
-}
-
-// #region Azure DevOps PR Review Functions
-
-/**
- * Get Azure DevOps configuration from VS Code settings
- * @returns {Object} Configuration object with token, organization, and default project
- */
-function getAzureDevOpsConfig() {
-    const config = vscode.workspace.getConfiguration('aiCodeReviewer.azureDevOps');
-    return {
-        token: config.get('personalAccessToken'),
-        organization: config.get('organization'),
-        defaultProject: config.get('defaultProject')
-    };
-}
-
-/**
- * Parse Azure DevOps PR URL to extract organization, project, repository, and PR ID
- * @param {string} url - Azure DevOps PR URL
- * @returns {Object} Parsed PR information
- */
-function parseAzureDevOpsPRUrl(url) {
-    // Parse: https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{prId}
-    const match = url.match(/https:\/\/dev\.azure\.com\/([^\/]+)\/([^\/]+)\/_git\/([^\/]+)\/pullrequest\/(\d+)/);
-    
-    if (!match) {
-        throw new Error('Invalid Azure DevOps PR URL format. Expected: https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{prId}');
-    }
-    
-    return {
-        organization: match[1],
-        project: match[2],
-        repository: match[3],
-        prId: match[4]
-    };
-}
-
-/**
- * Fetch Pull Request data from Azure DevOps REST API
- * @param {Object} prInfo - Parsed PR information
- * @param {string} token - Personal Access Token
- * @returns {Object} PR data from Azure DevOps API
- */
-async function fetchAzureDevOpsPR(prInfo, token) {
-    const { organization, project, repository, prId } = prInfo;
-    const url = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}?api-version=7.0`;
-    
-    const response = await fetch(url, {
-        headers: {
-            'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-            'Content-Type': 'application/json'
-        }
-    });
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Azure DevOps API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    return await response.json();
-}
-
-/**
- * Create git diff format from two file contents
- * @param {string} filePath - File path
- * @param {string} oldContent - Content from target branch (empty for new files)
- * @param {string} newContent - Content from source branch  
- * @param {string} changeType - Azure DevOps change type (add, edit, delete)
- * @returns {string} Git diff format string
- */
-function createGitDiffFromContent(filePath, oldContent, newContent, changeType) {
-    let diff = `diff --git a/${filePath} b/${filePath}\n`;
-    
-    if (changeType === 'add') {
-        // New file
-        diff += `new file mode 100644\n`;
-        diff += `index 0000000..${Math.random().toString(36).substring(2, 9)}\n`;
-        diff += `--- /dev/null\n`;
-        diff += `+++ b/${filePath}\n`;
-        
-        const newLines = newContent.split('\n');
-        diff += `@@ -0,0 +1,${newLines.length} @@\n`;
-        
-        newLines.forEach(line => {
-            diff += `+${line}\n`;
-        });
-        
-    } else if (changeType === 'delete') {
-        // Deleted file
-        diff += `deleted file mode 100644\n`;
-        diff += `index ${Math.random().toString(36).substring(2, 9)}..0000000\n`;
-        diff += `--- a/${filePath}\n`;
-        diff += `+++ /dev/null\n`;
-        
-        const oldLines = oldContent.split('\n');
-        diff += `@@ -1,${oldLines.length} +0,0 @@\n`;
-        
-        oldLines.forEach(line => {
-            diff += `-${line}\n`;
-        });
-        
-    } else {
-        // Modified file - create proper unified diff
-        diff += `index ${Math.random().toString(36).substring(2, 7)}..${Math.random().toString(36).substring(2, 7)} 100644\n`;
-        diff += `--- a/${filePath}\n`;
-        diff += `+++ b/${filePath}\n`;
-        
-        // Simple line-by-line comparison (can be improved with proper diff algorithm)
-        const oldLines = oldContent.split('\n');
-        const newLines = newContent.split('\n');
-        
-        const maxLines = Math.max(oldLines.length, newLines.length);
-        const contextSize = 3;
-        
-        let i = 0;
-        while (i < maxLines) {
-            // Find first difference
-            while (i < maxLines && oldLines[i] === newLines[i]) {
-                i++;
-            }
-            
-            if (i >= maxLines) break;
-            
-            // Found difference, create hunk
-            const hunkStart = Math.max(0, i - contextSize);
-            let hunkEnd = i;
-            
-            // Extend hunk to include all consecutive changes
-            while (hunkEnd < maxLines && (
-                hunkEnd < oldLines.length && hunkEnd < newLines.length 
-                    ? oldLines[hunkEnd] !== newLines[hunkEnd]
-                    : true
-            )) {
-                hunkEnd++;
-            }
-            
-            hunkEnd = Math.min(maxLines, hunkEnd + contextSize);
-            
-            // Create hunk header
-            const oldHunkSize = Math.min(hunkEnd, oldLines.length) - hunkStart;
-            const newHunkSize = Math.min(hunkEnd, newLines.length) - hunkStart;
-            diff += `@@ -${hunkStart + 1},${oldHunkSize} +${hunkStart + 1},${newHunkSize} @@\n`;
-            
-            // Add context and changes
-            for (let j = hunkStart; j < hunkEnd; j++) {
-                if (j < i - contextSize || j >= i + (hunkEnd - i - contextSize)) {
-                    // Context line
-                    const line = j < oldLines.length ? oldLines[j] : (j < newLines.length ? newLines[j] : '');
-                    diff += ` ${line}\n`;
-                } else {
-                    // Changed lines
-                    if (j < oldLines.length) {
-                        diff += `-${oldLines[j]}\n`;
-                    }
-                    if (j < newLines.length) {
-                        diff += `+${newLines[j]}\n`;
-                    }
-                }
-            }
-            
-            i = hunkEnd;
-        }
-    }
-    
-    return diff;
-}
-
-/**
- * Fetch Pull Request changes from Azure DevOps REST API
- * @param {Object} prInfo - Parsed PR information  
- * @param {string} token - Personal Access Token
- * @returns {string} Git diff format string
- */
-async function fetchAzureDevOpsPRDiff(prInfo, token) {
-    const { organization, project, repository, prId } = prInfo;
-    
-    try {
-        console.log('🚀 Starting PR diff fetch using NEW file content approach:', { organization, project, repository, prId });
-        
-        // NEW METHOD V2: Use Git commits API to get actual changes
-        try {
-            console.log('🎯 NEW METHOD V2: Git commits API approach...');
-            
-            // Step 1: Get PR data
-            const prData = await fetchAzureDevOpsPR(prInfo, token);
-            console.log('PR data retrieved:', {
-                sourceRef: prData.sourceRefName,
-                targetRef: prData.targetRefName,
-                lastMergeSourceCommit: prData.lastMergeSourceCommit?.commitId,
-                lastMergeTargetCommit: prData.lastMergeTargetCommit?.commitId
-            });
-            
-            // Step 2: Get commits in PR
-            const commitsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/commits?api-version=7.0`;
-            console.log('📂 Fetching PR commits...');
-            
-            const commitsResponse = await fetch(commitsUrl, {
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!commitsResponse.ok) {
-                throw new Error(`Failed to get PR commits: ${commitsResponse.status} ${commitsResponse.statusText}`);
-            }
-            
-            const commitsData = await commitsResponse.json();
-            console.log(`📊 Found ${commitsData.value?.length || 0} commits in PR`);
-            
-            if (commitsData.value && commitsData.value.length > 0) {
-                let gitDiff = '';
-                
-                // Step 3: Get changes for each commit
-                for (const [index, commit] of commitsData.value.slice(0, 5).entries()) { // Limit to 5 commits
-                    console.log(`📄 [${index + 1}] Processing commit: ${commit.commitId.substring(0, 8)} - ${commit.comment}`);
-                    
-                    try {
-                        // Get changes for this commit
-                        const commitChangesUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/commits/${commit.commitId}/changes?api-version=7.0`;
-                        
-                        const commitChangesResponse = await fetch(commitChangesUrl, {
-                            headers: {
-                                'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        
-                        if (commitChangesResponse.ok) {
-                            const commitChangesData = await commitChangesResponse.json();
-                            console.log(`  ✅ Found ${commitChangesData.changes?.length || 0} file changes in commit`);
-                            
-                            if (commitChangesData.changes && commitChangesData.changes.length > 0) {
-                                gitDiff += `\n# Commit: ${commit.commitId.substring(0, 8)} - ${commit.comment}\n`;
-                                gitDiff += `# Author: ${commit.author?.name} <${commit.author?.email}>\n`;
-                                gitDiff += `# Date: ${new Date(commit.author?.date).toLocaleString()}\n\n`;
-                                
-                                for (const change of commitChangesData.changes.slice(0, 10)) { // Limit files per commit
-                                    const filePath = change.item?.path || 'unknown';
-                                    
-                                    gitDiff += `diff --git a/${filePath} b/${filePath}\n`;
-                                    
-                                    if (change.changeType === 'add') {
-                                        gitDiff += `new file mode 100644\n`;
-                                        gitDiff += `index 0000000..${change.item?.objectId?.substring(0, 7)}\n`;
-                                        gitDiff += `--- /dev/null\n`;
-                                        gitDiff += `+++ b/${filePath}\n`;
-                                    } else if (change.changeType === 'delete') {
-                                        gitDiff += `deleted file mode 100644\n`;
-                                        gitDiff += `index ${change.item?.objectId?.substring(0, 7)}..0000000\n`;
-                                        gitDiff += `--- a/${filePath}\n`;
-                                        gitDiff += `+++ /dev/null\n`;
-                                    } else {
-                                        gitDiff += `index ${change.originalObjectId?.substring(0, 7)}..${change.item?.objectId?.substring(0, 7)} 100644\n`;
-                                        gitDiff += `--- a/${filePath}\n`;
-                                        gitDiff += `+++ b/${filePath}\n`;
-                                    }
-                                    
-                                    gitDiff += `@@ -1,1 +1,1 @@\n`;
-                                    gitDiff += ` // ${change.changeType}: ${filePath}\n`;
-                                    gitDiff += ` // Object ID: ${change.item?.objectId?.substring(0, 8)}\n`;
-                                    gitDiff += ` // Size: ${change.item?.size || 'unknown'} bytes\n`;
-                                    gitDiff += `\n`;
-                                }
-                            }
-                        } else {
-                            console.log(`  ❌ Failed to get commit changes: ${commitChangesResponse.status}`);
-                        }
-                    } catch (commitError) {
-                        console.log(`  ❌ Error processing commit ${commit.commitId}:`, commitError.message);
-                    }
-                }
-                
-                if (gitDiff.trim()) {
-                    console.log('✅ NEW METHOD V2 SUCCESS: Created git diff from commits API!');
-                    console.log(`📏 Total diff size: ${gitDiff.length} characters`);
-                    return gitDiff;
-                } else {
-                    console.log('❌ NEW METHOD V2: No diff content generated from commits');
-                }
-            }
-            
-        } catch (newMethodV2Error) {
-            console.log('❌ NEW METHOD V2 failed:', newMethodV2Error.message);
-        }
-        
-        console.log('🔄 Falling back to old methods...');
-        console.log('Starting PR diff fetch for:', { organization, project, repository, prId });
-        
-        // Method 0: Try PR comparison API (NEW)
-        try {
-            console.log('Method 0: Trying PR comparison API...');
-            const prData = await fetchAzureDevOpsPR(prInfo, token);
-            
-            if (prData.sourceRefName && prData.targetRefName) {
-                const sourceBranch = prData.sourceRefName.replace('refs/heads/', '');
-                const targetBranch = prData.targetRefName.replace('refs/heads/', '');
-                
-                console.log(`Comparing ${targetBranch}...${sourceBranch}`);
-                
-                const compareUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${targetBranch}&targetVersion=${sourceBranch}&api-version=7.0`;
-                
-                const compareResponse = await fetch(compareUrl, {
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (compareResponse.ok) {
-                    const compareData = await compareResponse.json();
-                    console.log('Branch comparison data:', JSON.stringify(compareData, null, 2));
-                    
-                    if (compareData.changes && compareData.changes.length > 0) {
-                        return convertBranchComparisonToGitFormat(compareData);
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Method 0 failed:', error.message);
-        }
-        
-        // Method 0.5: Try getting file list first, then individual diffs
-        try {
-            console.log('Method 0.5: Trying file list approach...');
-            const filesUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/iterations/1/changes?api-version=7.0`;
-            
-            const filesResponse = await fetch(filesUrl, {
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (filesResponse.ok) {
-                const filesData = await filesResponse.json();
-                console.log('Files list data:', JSON.stringify(filesData, null, 2));
-                
-                if (filesData.changeEntries && filesData.changeEntries.length > 0) {
-                    let allDiffs = '';
-                    
-                    // Get detailed diff for each file
-                    for (const change of filesData.changeEntries.slice(0, 5)) { // Limit to first 5 files
-                        const filePath = change.item.path;
-                        console.log(`Getting diff for file: ${filePath}`);
-                        
-                        // Try different APIs for this specific file
-                        const fileVersionsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/items?path=${encodeURIComponent(filePath)}&includeContent=true&api-version=7.0`;
-                        
-                        try {
-                            const fileResponse = await fetch(fileVersionsUrl, {
-                                headers: {
-                                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-                            
-                            if (fileResponse.ok) {
-                                const fileData = await fileResponse.json();
-                                console.log(`File ${filePath} data:`, JSON.stringify(fileData, null, 2));
-                                
-                                // Create a simple diff entry
-                                allDiffs += `diff --git a${filePath} b${filePath}\n`;
-                                allDiffs += `index unknown..unknown 100644\n`;
-                                allDiffs += `--- a${filePath}\n`;
-                                allDiffs += `+++ b${filePath}\n`;
-                                allDiffs += `@@ -1,1 +1,1 @@\n`;
-                                allDiffs += `+// File modified: ${filePath}\n`;
-                                allDiffs += `+// Change type: ${change.changeType}\n`;
-                                
-                                if (fileData.content) {
-                                    const content = fileData.content.substring(0, 500);
-                                    allDiffs += `+// Current content preview:\n`;
-                                    content.split('\n').slice(0, 10).forEach(line => {
-                                        allDiffs += `+// ${line}\n`;
-                                    });
-                                }
-                                allDiffs += '\n';
-                            }
-                        } catch (fileError) {
-                            console.log(`Error fetching file ${filePath}:`, fileError.message);
-                        }
-                    }
-                    
-                    if (allDiffs) {
-                        return allDiffs;
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Method 0.5 failed:', error.message);
-        }
-        // Method 1: Try to get the actual diff from Azure DevOps Git API
-        const gitDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/commits?api-version=7.0`;
-        
-        try {
-            const commitsResponse = await fetch(gitDiffUrl, {
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (commitsResponse.ok) {
-                const commits = await commitsResponse.json();
-                console.log('Commits response:', JSON.stringify(commits, null, 2));
-                
-                if (commits.value && commits.value.length > 0) {
-                    // Try to get direct diff for each commit
-                    for (const commit of commits.value) {
-                        console.log('Processing commit:', commit.commitId);
-                        
-                        // Try getting diff for this specific commit
-                        const singleCommitDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/commits/${commit.commitId}/changes?api-version=7.0`;
-                        
-                        try {
-                            const commitChangesResponse = await fetch(singleCommitDiffUrl, {
-                                headers: {
-                                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-                            
-                            if (commitChangesResponse.ok) {
-                                const commitChanges = await commitChangesResponse.json();
-                                console.log('Commit changes:', JSON.stringify(commitChanges, null, 2));
-                                
-                                if (commitChanges.changes && commitChanges.changes.length > 0) {
-                                    return convertCommitChangesToGitFormat(commitChanges.changes);
-                                }
-                            }
-                        } catch (commitError) {
-                            console.log('Error fetching commit changes:', commitError.message);
-                        }
-                    }
-                    
-                    // Fallback: Try diff between commits if multiple commits
-                    if (commits.value.length > 1) {
-                        const latestCommit = commits.value[0];
-                        const previousCommit = commits.value[1];
-                        
-                        const diffBetweenCommitsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${previousCommit.commitId}&targetVersion=${latestCommit.commitId}&api-version=7.0`;
-                        
-                        try {
-                            const diffResponse = await fetch(diffBetweenCommitsUrl, {
-                                headers: {
-                                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-                            
-                            if (diffResponse.ok) {
-                                const diffData = await diffResponse.json();
-                                console.log('Diff between commits:', JSON.stringify(diffData, null, 2));
-                                return convertCommitDiffToGitFormat(diffData);
-                            }
-                        } catch (diffError) {
-                            console.log('Error fetching diff between commits:', diffError.message);
-                        }
-                    }
-                } else {
-                    console.log('No commits found in PR');
-                }
-            } else {
-                console.log('Failed to fetch commits:', commitsResponse.status, commitsResponse.statusText);
-            }
-        } catch (error) {
-            console.log('Error in method 1:', error.message);
-        }
-        
-        // Method 2: First try to get the actual diff from Azure DevOps
-        console.log('Attempting to fetch raw diff...');
-        const diffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/iterations/1/changes?api-version=7.0&$format=diff`;
-        
-        try {
-            const diffResponse = await fetch(diffUrl, {
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                    'Accept': 'text/plain'
-                }
-            });
-            
-            if (diffResponse.ok) {
-                const diffText = await diffResponse.text();
-                console.log('Raw diff response length:', diffText.length);
-                console.log('Raw diff response sample:', diffText.substring(0, 500));
-                
-                if (diffText && diffText.trim() && !diffText.includes('{"count":') && !diffText.includes('<!DOCTYPE')) {
-                    return diffText;
-                }
-            } else {
-                console.log('Raw diff request failed:', diffResponse.status, diffResponse.statusText);
-            }
-        } catch (error) {
-            console.log('Raw diff request error:', error.message);
-        }
-        
-        // Method 3: Fallback - Get PR iterations to find the latest changes
-        console.log('Attempting to fetch PR iterations...');
-        const iterationsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/iterations?api-version=7.0`;
-        
-        const iterationsResponse = await fetch(iterationsUrl, {
-            headers: {
-                'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!iterationsResponse.ok) {
-            const errorText = await iterationsResponse.text();
-            console.log('Iterations API error response:', errorText);
-            throw new Error(`Failed to fetch PR iterations: ${iterationsResponse.status} ${iterationsResponse.statusText}`);
-        }
-        
-        const iterations = await iterationsResponse.json();
-        console.log('Iterations response:', JSON.stringify(iterations, null, 2));
-        
-        if (!iterations.value || iterations.value.length === 0) {
-            throw new Error('No iterations found for this PR');
-        }
-        
-        const latestIteration = iterations.value[iterations.value.length - 1];
-        console.log('Using iteration:', latestIteration.id);
-        
-        // Get changes for the latest iteration with includeContent=true
-        console.log('Attempting to fetch PR changes...');
-        const changesUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/iterations/${latestIteration.id}/changes?api-version=7.0&includeContent=true`;
-        
-        const changesResponse = await fetch(changesUrl, {
-            headers: {
-                'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!changesResponse.ok) {
-            const errorText = await changesResponse.text();
-            console.log('Changes API error response:', errorText);
-            throw new Error(`Failed to fetch PR changes: ${changesResponse.status} ${changesResponse.statusText}`);
-        }
-        
-        const changes = await changesResponse.json();
-        
-        // Debug: Log the actual changes structure
-        console.log('Azure DevOps Changes Structure:', JSON.stringify(changes, null, 2));
-        
-        // Method 4: Try to get individual file contents for real diff
-        if (changes.changeEntries && changes.changeEntries.length > 0) {
-            console.log('Attempting to fetch individual file contents...');
-            
-            for (const change of changes.changeEntries) {
-                if (change.changeType === 'edit' && change.item && change.item.objectId) {
-                    try {
-                        // Get current file content
-                        const currentFileUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/blobs/${change.item.objectId}?api-version=7.0`;
-                        const currentFileResponse = await fetch(currentFileUrl, {
-                            headers: {
-                                'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                'Accept': 'text/plain'
-                            }
-                        });
-                        
-                        if (currentFileResponse.ok) {
-                            const currentContent = await currentFileResponse.text();
-                            console.log(`Got current content for ${change.item.path}:`, currentContent.substring(0, 200));
-                            
-                            // Try to get original file content
-                            if (change.originalObjectId) {
-                                const originalFileUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/blobs/${change.originalObjectId}?api-version=7.0`;
-                                const originalFileResponse = await fetch(originalFileUrl, {
-                                    headers: {
-                                        'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                        'Accept': 'text/plain'
-                                    }
-                                });
-                                
-                                if (originalFileResponse.ok) {
-                                    const originalContent = await originalFileResponse.text();
-                                    console.log(`Got original content for ${change.item.path}:`, originalContent.substring(0, 200));
-                                    
-                                    // Create real diff with actual content
-                                    return createRealDiff(change.item.path, originalContent, currentContent);
-                                }
-                            }
-                        }
-                    } catch (fileError) {
-                        console.log(`Error fetching file content for ${change.item.path}:`, fileError.message);
-                    }
-                }
-            }
-        }
-        
-        // Method FINAL: Try getting actual Git commit diff using base and target commits
-        try {
-            console.log('Method FINAL: Trying Git commit comparison...');
-            const prData = await fetchAzureDevOpsPR(prInfo, token);
-            
-            if (prData.lastMergeSourceCommit && prData.lastMergeTargetCommit) {
-                const baseCommit = prData.lastMergeTargetCommit.commitId;
-                const targetCommit = prData.lastMergeSourceCommit.commitId;
-                
-                console.log(`Comparing commits: ${baseCommit}..${targetCommit}`);
-                
-                const commitDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersionType=commit&baseVersion=${baseCommit}&targetVersionType=commit&targetVersion=${targetCommit}&api-version=7.0`;
-                
-                const commitDiffResponse = await fetch(commitDiffUrl, {
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (commitDiffResponse.ok) {
-                    const commitDiffData = await commitDiffResponse.json();
-                    console.log('Git commit diff data:', JSON.stringify(commitDiffData, null, 2));
-                    
-                    if (commitDiffData.changes && commitDiffData.changes.length > 0) {
-                        let realGitDiff = '';
-                        
-                        commitDiffData.changes.forEach(change => {
-                            const filePath = change.item ? change.item.path : change.originalPath;
-                            
-                            realGitDiff += `diff --git a${filePath} b${filePath}\n`;
-                            realGitDiff += `index ${change.originalObjectId?.substring(0, 7) || 'unknown'}..${change.item?.objectId?.substring(0, 7) || 'unknown'} 100644\n`;
-                            realGitDiff += `--- a${filePath}\n`;
-                            realGitDiff += `+++ b${filePath}\n`;
-                            
-                            // Add hunks if available
-                            if (change.hunks && change.hunks.length > 0) {
-                                change.hunks.forEach(hunk => {
-                                    realGitDiff += `@@ -${hunk.oldStart},${hunk.oldLength} +${hunk.newStart},${hunk.newLength} @@\n`;
-                                    
-                                    if (hunk.lines && hunk.lines.length > 0) {
-                                        hunk.lines.forEach(line => {
-                                            const prefix = line.changeType === 1 ? '+' : line.changeType === 2 ? '-' : ' ';
-                                            realGitDiff += `${prefix}${line.content || ''}\n`;
-                                        });
-                                    }
-                                });
-                            } else {
-                                realGitDiff += `@@ -1,1 +1,1 @@\n`;
-                                realGitDiff += `+// File ${change.changeType}: ${filePath}\n`;
-                            }
-                            
-                            realGitDiff += '\n';
-                        });
-                        
-                        if (realGitDiff && !realGitDiff.includes('// Branch comparison')) {
-                            console.log('SUCCESS: Got real git diff with hunks!');
-                            return realGitDiff;
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Method FINAL failed:', error.message);
-        }
-        
-        // Convert Azure DevOps changes format to git diff format
-        return convertAzureDevOpsChangesToGitDiff(changes);
-        
-        // Method FINAL: Try getting raw diff using git refs
-        try {
-            console.log('Method FINAL: Trying git refs comparison...');
-            const prData = await fetchAzureDevOpsPR(prInfo, token);
-            
-            if (prData.sourceRefName && prData.targetRefName) {
-                const sourceRef = prData.sourceRefName;
-                const targetRef = prData.targetRefName;
-                
-                // Try git diff API
-                const gitDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${targetRef}&targetVersion=${sourceRef}&api-version=7.0&diffCommonCommit=true`;
-                
-                const gitDiffResponse = await fetch(gitDiffUrl, {
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (gitDiffResponse.ok) {
-                    const gitDiffData = await gitDiffResponse.json();
-                    console.log('Git refs diff data:', JSON.stringify(gitDiffData, null, 2));
-                    
-                    if (gitDiffData.changes && gitDiffData.changes.length > 0) {
-                        return convertBranchComparisonToGitFormat(gitDiffData);
-                    }
-                }
-                
-                // Alternative: try with commit IDs instead of refs
-                if (prData.lastMergeCommit) {
-                    const commitDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/commits/${prData.lastMergeCommit.commitId}/changes?api-version=7.0`;
-                    
-                    const commitResponse = await fetch(commitDiffUrl, {
-                        headers: {
-                            'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (commitResponse.ok) {
-                        const commitData = await commitResponse.json();
-                        console.log('Last merge commit data:', JSON.stringify(commitData, null, 2));
-                        
-                        if (commitData.changes && commitData.changes.length > 0) {
-                            return convertCommitChangesToGitFormat(commitData.changes);
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Method FINAL failed:', error.message);
-        }
-        
-        // Method FINAL+1: Get actual file contents from both branches and create proper diff
-        try {
-            console.log('Method FINAL+1: Trying file content comparison approach...');
-            
-            // Get PR data to know source/target branches
-            const prData = await fetchAzureDevOpsPR(prInfo, token);
-            const sourceBranch = prData.sourceRefName?.replace('refs/heads/', '') || 'feature';
-            const targetBranch = prData.targetRefName?.replace('refs/heads/', '') || 'main';
-            
-            console.log(`Comparing branches: ${targetBranch} (target) -> ${sourceBranch} (source)`);
-            
-            // Get file list from PR changes
-            const changesResponse = await fetch(`https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullrequests/${prId}/iterations/1/changes?api-version=7.0`, {
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (changesResponse.ok) {
-                const changesData = await changesResponse.json();
-                console.log(`Processing ${changesData.changeEntries?.length || 0} file changes...`);
-                
-                if (changesData.changeEntries && changesData.changeEntries.length > 0) {
-                    let gitDiff = '';
-                    
-                    // Process each changed file
-                    for (const change of changesData.changeEntries.slice(0, 10)) { // Limit to first 10 files
-                        const filePath = change.item?.path;
-                        if (!filePath) continue;
-                        
-                        console.log(`Processing file: ${filePath} (${change.changeType})`);
-                        
-                        let sourceContent = '';
-                        let targetContent = '';
-                        
-                        // Get content from source branch (PR branch)
-                        try {
-                            const sourceUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/items?path=${encodeURIComponent(filePath)}&version=${sourceBranch}&includeContent=true&api-version=7.0`;
-                            const sourceResponse = await fetch(sourceUrl, {
-                                headers: {
-                                    'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-                            
-                            if (sourceResponse.ok) {
-                                const sourceData = await sourceResponse.json();
-                                sourceContent = sourceData.content || '';
-                                console.log(`✅ Source content: ${sourceContent.length} chars`);
-                            } else {
-                                console.log(`❌ Failed to get source content: ${sourceResponse.status}`);
-                            }
-                        } catch (error) {
-                            console.log(`❌ Error getting source content:`, error.message);
-                        }
-                        
-                        // Get content from target branch (only for edit/delete, not for new files)
-                        if (change.changeType !== 'add') {
-                            try {
-                                const targetUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/items?path=${encodeURIComponent(filePath)}&version=${targetBranch}&includeContent=true&api-version=7.0`;
-                                const targetResponse = await fetch(targetUrl, {
-                                    headers: {
-                                        'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-                                        'Content-Type': 'application/json'
-                                    }
-                                });
-                                
-                                if (targetResponse.ok) {
-                                    const targetData = await targetResponse.json();
-                                    targetContent = targetData.content || '';
-                                    console.log(`✅ Target content: ${targetContent.length} chars`);
-                                } else {
-                                    console.log(`❌ Failed to get target content: ${targetResponse.status}`);
-                                }
-                            } catch (error) {
-                                console.log(`❌ Error getting target content:`, error.message);
-                            }
-                        } else {
-                            console.log(`⭐ New file detected - no target content needed`);
-                        }
-                        
-                        // Create git diff from content comparison
-                        if (sourceContent || targetContent) {
-                            const fileDiff = createGitDiffFromContent(filePath, targetContent, sourceContent, change.changeType);
-                            gitDiff += fileDiff + '\n';
-                            console.log(`✅ Created diff for ${filePath}`);
-                        } else {
-                            console.log(`⚠️ No content retrieved for ${filePath}`);
-                        }
-                    }
-                    
-                    if (gitDiff.trim()) {
-                        console.log('✅ Method FINAL+1: Successfully created git diff from file contents!');
-                        return gitDiff;
-                    } else {
-                        console.log('❌ Method FINAL+1: No diff content generated');
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Method FINAL+1 failed:', error.message);
-        }
-        
-    } catch (error) {
-        console.error('Error fetching PR diff:', error);
-        console.error('Error stack:', error.stack);
-        
-        // Return a meaningful error message with debugging info
-        return `// Error fetching PR diff: ${error.message}
-// 
-// Debugging Information:
-// - Organization: ${organization}
-// - Project: ${project}  
-// - Repository: ${repository}
-// - PR ID: ${prId}
-//
-// All methods attempted:
-// 1. PR comparison API (branch diff)
-// 2. File list with individual content
-// 3. Commit changes API
-// 4. Raw diff format API  
-// 5. PR iterations API
-// 6. Individual file blobs API
-// 7. Git refs comparison
-// 8. Direct file content fetching
-//
-// Please check:
-// 1. Personal Access Token is valid and has proper permissions
-// 2. You have access to the Azure DevOps organization/project
-// 3. The PR exists and is accessible
-// 4. Check VS Code Developer Console (F12) for detailed error logs
-//
-// Azure DevOps may not provide detailed diff content through their REST API.
-// Consider using git command line tools for detailed diffs.
-`;
-    }
-}
-
-/**
- * Convert branch comparison data to git format
- * @param {Object} compareData - Azure DevOps branch comparison data
- * @returns {string} Git diff format string
- */
-function convertBranchComparisonToGitFormat(compareData) {
-    if (!compareData.changes || compareData.changes.length === 0) {
-        return '// No branch comparison data available\n';
-    }
-    
-    let gitDiff = '';
-    
-    compareData.changes.forEach(change => {
-        const filePath = change.item ? change.item.path : change.originalPath || 'unknown';
-        
-        gitDiff += `diff --git a${filePath} b${filePath}\n`;
-        
-        // Add change metadata
-        if (change.changeType === 'add' || change.changeType === 1) {
-            gitDiff += `new file mode 100644\n`;
-            gitDiff += `index 0000000..${change.item?.objectId?.substring(0, 7) || 'unknown'}\n`;
-            gitDiff += `--- /dev/null\n`;
-            gitDiff += `+++ b${filePath}\n`;
-        } else if (change.changeType === 'delete' || change.changeType === 2) {
-            gitDiff += `deleted file mode 100644\n`;
-            gitDiff += `index ${change.originalObjectId?.substring(0, 7) || 'unknown'}..0000000\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ /dev/null\n`;
-        } else {
-            // Edit or other changes
-            const oldId = change.originalObjectId?.substring(0, 7) || 'unknown';
-            const newId = change.item?.objectId?.substring(0, 7) || 'unknown';
-            gitDiff += `index ${oldId}..${newId} 100644\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ b${filePath}\n`;
-        }
-        
-        // Try to show actual diff if available
-        if (change.hunks && change.hunks.length > 0) {
-            change.hunks.forEach(hunk => {
-                gitDiff += `@@ -${hunk.oldStart || 1},${hunk.oldLength || 1} +${hunk.newStart || 1},${hunk.newLength || 1} @@\n`;
-                
-                if (hunk.lines && hunk.lines.length > 0) {
-                    hunk.lines.forEach(line => {
-                        const prefix = line.changeType === 'add' ? '+' : 
-                                     line.changeType === 'delete' ? '-' : 
-                                     line.changeType === 'context' ? ' ' : ' ';
-                        gitDiff += `${prefix}${line.content || line.text || ''}\n`;
-                    });
-                } else {
-                    gitDiff += ` // Hunk content not available\n`;
-                }
-            });
-        } else {
-            // Fallback when no hunks
-            gitDiff += `@@ -1,1 +1,1 @@\n`;
-            gitDiff += `+// Branch comparison: ${change.changeType} - ${filePath}\n`;
-            gitDiff += `+// Original: ${change.originalObjectId || 'N/A'}\n`;
-            gitDiff += `+// Current: ${change.item?.objectId || 'N/A'}\n`;
-        }
-        
-        gitDiff += '\n';
-    });
-    
-    return gitDiff;
-}
-
-/**
- * Create real diff from original and current content
- * @param {string} filePath - File path
- * @param {string} originalContent - Original file content
- * @param {string} currentContent - Current file content
- * @returns {string} Git diff format string
- */
-function createRealDiff(filePath, originalContent, currentContent) {
-    const originalLines = originalContent.split('\n');
-    const currentLines = currentContent.split('\n');
-    
-    let gitDiff = `diff --git a${filePath} b${filePath}\n`;
-    gitDiff += `index unknown..unknown 100644\n`;
-    gitDiff += `--- a${filePath}\n`;
-    gitDiff += `+++ b${filePath}\n`;
-    
-    // Simple line-by-line diff
-    const maxLines = Math.max(originalLines.length, currentLines.length);
-    let hasChanges = false;
-    
-    // Find first difference to create proper hunk header
-    let firstDiff = -1;
-    for (let i = 0; i < maxLines; i++) {
-        const origLine = originalLines[i] || '';
-        const currLine = currentLines[i] || '';
-        if (origLine !== currLine) {
-            firstDiff = i;
-            break;
-        }
-    }
-    
-    if (firstDiff >= 0) {
-        gitDiff += `@@ -${firstDiff + 1},${originalLines.length - firstDiff} +${firstDiff + 1},${currentLines.length - firstDiff} @@\n`;
-        
-        // Show context and changes
-        for (let i = Math.max(0, firstDiff - 3); i < maxLines && i < firstDiff + 20; i++) {
-            const origLine = originalLines[i] || '';
-            const currLine = currentLines[i] || '';
-            
-            if (i < firstDiff) {
-                // Context lines before change
-                gitDiff += ` ${origLine}\n`;
-            } else if (origLine !== currLine) {
-                // Changed lines
-                if (i < originalLines.length) {
-                    gitDiff += `-${origLine}\n`;
-                }
-                if (i < currentLines.length) {
-                    gitDiff += `+${currLine}\n`;
-                }
-                hasChanges = true;
-            } else {
-                // Context lines after change
-                gitDiff += ` ${origLine}\n`;
-            }
-        }
-    }
-    
-    if (!hasChanges) {
-        gitDiff += `@@ -1,1 +1,1 @@\n`;
-        gitDiff += ` // No visible differences detected\n`;
-    }
-    
-    return gitDiff + '\n';
-}
-
-/**
- * Convert commit changes to git format
- * @param {Array} changes - Azure DevOps commit changes array
- * @returns {string} Git diff format string
- */
-function convertCommitChangesToGitFormat(changes) {
-    if (!changes || changes.length === 0) {
-        return '// No commit changes available\n';
-    }
-    
-    let gitDiff = '';
-    
-    changes.forEach(change => {
-        const filePath = change.item ? change.item.path : change.sourceServerItem || 'unknown';
-        
-        gitDiff += `diff --git a${filePath} b${filePath}\n`;
-        
-        // Add change metadata
-        if (change.changeType === 'add' || change.changeType === 1) {
-            gitDiff += `new file mode 100644\n`;
-            gitDiff += `index 0000000..${change.item?.objectId?.substring(0, 7) || 'unknown'}\n`;
-            gitDiff += `--- /dev/null\n`;
-            gitDiff += `+++ b${filePath}\n`;
-        } else if (change.changeType === 'delete' || change.changeType === 2) {
-            gitDiff += `deleted file mode 100644\n`;
-            gitDiff += `index ${change.originalObjectId?.substring(0, 7) || 'unknown'}..0000000\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ /dev/null\n`;
-        } else {
-            // Edit or other changes
-            const oldId = change.originalObjectId?.substring(0, 7) || 'unknown';
-            const newId = change.item?.objectId?.substring(0, 7) || 'unknown';
-            gitDiff += `index ${oldId}..${newId} 100644\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ b${filePath}\n`;
-        }
-        
-        // Add a simple diff placeholder
-        gitDiff += `@@ -1,1 +1,1 @@\n`;
-        gitDiff += `-// File ${change.changeType === 'add' ? 'added' : change.changeType === 'delete' ? 'deleted' : 'modified'}: ${filePath}\n`;
-        gitDiff += `+// CHANGE TYPE: ${change.changeType} - ${filePath}\n`;
-        gitDiff += `+// Note: Actual file content diff not available from this API endpoint\n`;
-        gitDiff += '\n';
-    });
-    
-    return gitDiff;
-}
-
-/**
- * Convert commit diff data to git format
- * @param {Object} diffData - Azure DevOps commit diff data
- * @returns {string} Git diff format string
- */
-function convertCommitDiffToGitFormat(diffData) {
-    if (!diffData.changes || diffData.changes.length === 0) {
-        return '// No commit diff data available\n';
-    }
-    
-    let gitDiff = '';
-    
-    diffData.changes.forEach(change => {
-        const filePath = change.item ? change.item.path : change.originalPath || 'unknown';
-        
-        gitDiff += `diff --git a${filePath} b${filePath}\n`;
-        
-        // Add change metadata
-        if (change.changeType === 'add') {
-            gitDiff += `new file mode 100644\n`;
-        } else if (change.changeType === 'delete') {
-            gitDiff += `deleted file mode 100644\n`;
-        }
-        
-        // Add index line
-        const oldId = change.originalObjectId ? change.originalObjectId.substring(0, 7) : '0000000';
-        const newId = change.item && change.item.objectId ? change.item.objectId.substring(0, 7) : '0000000';
-        gitDiff += `index ${oldId}..${newId} 100644\n`;
-        
-        // Add file headers
-        gitDiff += `--- ${change.changeType === 'add' ? '/dev/null' : 'a' + filePath}\n`;
-        gitDiff += `+++ ${change.changeType === 'delete' ? '/dev/null' : 'b' + filePath}\n`;
-        
-        // Add hunks if available
-        if (change.hunks && change.hunks.length > 0) {
-            change.hunks.forEach(hunk => {
-                gitDiff += `@@ -${hunk.oldStart},${hunk.oldLength} +${hunk.newStart},${hunk.newLength} @@\n`;
-                if (hunk.lines) {
-                    hunk.lines.forEach(line => {
-                        const prefix = line.changeType === 'add' ? '+' : line.changeType === 'delete' ? '-' : ' ';
-                        gitDiff += `${prefix}${line.content || ''}\n`;
-                    });
-                }
-            });
-        } else {
-            // Fallback if no hunks
-            gitDiff += `@@ -1,1 +1,1 @@\n`;
-            gitDiff += `-// File ${change.changeType}: ${filePath} (detailed diff not available)\n`;
-            gitDiff += `+// ${change.changeType.toUpperCase()}: ${filePath}\n`;
-        }
-        
-        gitDiff += '\n';
-    });
-    
-    return gitDiff;
-}
-
-/**
- * Convert Azure DevOps changes format to git diff format
- * @param {Object} changes - Azure DevOps changes object
- * @returns {string} Git diff format string
- */
-function convertAzureDevOpsChangesToGitDiff(changes) {
-    console.log('Converting changes to git diff:', changes);
-    
-    if (!changes.changeEntries || changes.changeEntries.length === 0) {
-        return '// No changes found in this PR\n';
-    }
-    
-    let gitDiff = '';
-    
-    changes.changeEntries.forEach((change, index) => {
-        console.log(`Processing change ${index + 1}:`, change);
-        
-        const filePath = change.item.path;
-        
-        gitDiff += `diff --git a${filePath} b${filePath}\n`;
-        
-        if (change.changeType === 'add') {
-            gitDiff += `new file mode 100644\n`;
-            gitDiff += `index 0000000..${change.item.objectId ? change.item.objectId.substring(0, 7) : 'unknown'}\n`;
-            gitDiff += `--- /dev/null\n`;
-            gitDiff += `+++ b${filePath}\n`;
-            
-            // Try to get actual content
-            if (change.item && change.item.content) {
-                const lines = change.item.content.split('\n');
-                gitDiff += `@@ -0,0 +1,${lines.length} @@\n`;
-                lines.forEach(line => {
-                    gitDiff += `+${line}\n`;
-                });
-            } else {
-                gitDiff += `@@ -0,0 +1,1 @@\n`;
-                gitDiff += `+// New file added: ${filePath} (content not available)\n`;
-            }
-        } else if (change.changeType === 'delete') {
-            gitDiff += `deleted file mode 100644\n`;
-            gitDiff += `index ${change.originalObjectId ? change.originalObjectId.substring(0, 7) : 'unknown'}..0000000\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ /dev/null\n`;
-            
-            // Try to get original content
-            if (change.originalContent) {
-                const lines = change.originalContent.split('\n');
-                gitDiff += `@@ -1,${lines.length} +0,0 @@\n`;
-                lines.forEach(line => {
-                    gitDiff += `-${line}\n`;
-                });
-            } else {
-                gitDiff += `@@ -1,1 +0,0 @@\n`;
-                gitDiff += `-// File deleted: ${filePath} (original content not available)\n`;
-            }
-        } else if (change.changeType === 'edit') {
-            gitDiff += `index ${change.originalObjectId ? change.originalObjectId.substring(0, 7) : 'unknown'}..${change.item.objectId ? change.item.objectId.substring(0, 7) : 'unknown'} 100644\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ b${filePath}\n`;
-            
-            // Try to get actual diff content
-            if (change.originalContent && change.item && change.item.content) {
-                const originalLines = change.originalContent.split('\n');
-                const newLines = change.item.content.split('\n');
-                gitDiff += `@@ -1,${originalLines.length} +1,${newLines.length} @@\n`;
-                
-                // Simple diff - show original as removed, new as added
-                originalLines.forEach(line => {
-                    gitDiff += `-${line}\n`;
-                });
-                newLines.forEach(line => {
-                    gitDiff += `+${line}\n`;
-                });
-            } else {
-                // Fallback when content is not available
-                gitDiff += `@@ -1,${change.originalSize || 'unknown'} +1,${change.item.size || 'unknown'} @@\n`;
-                gitDiff += `-// File modified: ${filePath} (showing ${change.originalSize || 'unknown'} -> ${change.item.size || 'unknown'} bytes)\n`;
-                gitDiff += `+// Original content not available via API\n`;
-                gitDiff += `+// This is a ${change.changeType} operation on file: ${filePath}\n`;
-            }
-        } else {
-            // Handle other change types (rename, etc.)
-            gitDiff += `index ${change.originalObjectId ? change.originalObjectId.substring(0, 7) : 'unknown'}..${change.item.objectId ? change.item.objectId.substring(0, 7) : 'unknown'} 100644\n`;
-            gitDiff += `--- a${filePath}\n`;
-            gitDiff += `+++ b${filePath}\n`;
-            gitDiff += `@@ -1,1 +1,1 @@\n`;
-            gitDiff += `-// Change type: ${change.changeType}\n`;
-            gitDiff += `+// ${change.changeType}: ${filePath}\n`;
-        }
-        
-        gitDiff += '\n';
-    });
-    
-    console.log('Generated git diff:', gitDiff);
-    return gitDiff;
-}
-
-/**
- * Main handler for Azure DevOps PR review
- * @param {string} prUrl - Azure DevOps PR URL
- * @param {Object} stream - VS Code chat stream
- * @param {Object} context - VS Code extension context  
- * @param {Object} request - Chat request object
- */
-async function handleAzureDevOpsPRReview(prUrl, stream, context, request) {
-    const config = getAzureDevOpsConfig();
-    
-    // Check if token is configured
-    if (!config.token) {
-        stream.markdown('❌ **Configuration Required**\n\n');
-        stream.markdown('Please configure your Azure DevOps Personal Access Token:\n\n');
-        stream.markdown('**Method 1: VS Code Settings UI**\n');
-        stream.markdown('1. Go to VS Code Settings (`Ctrl/Cmd + ,`)\n');
-        stream.markdown('2. Search for "azure devops"\n');
-        stream.markdown('3. Set your Personal Access Token\n\n');
-        stream.markdown('**Method 2: Settings JSON**\n');
-        stream.markdown('1. Open Command Palette (`Ctrl/Cmd + Shift + P`)\n');
-        stream.markdown('2. Type: `Preferences: Open Settings (JSON)`\n');
-        stream.markdown('3. Add:\n');
-        stream.markdown('```json\n');
-        stream.markdown('{\n');
-        stream.markdown('  "aiCodeReviewer.azureDevOps.personalAccessToken": "your-token-here",\n');
-        stream.markdown('  "aiCodeReviewer.azureDevOps.organization": "your-org-name"\n');
-        stream.markdown('}\n');
-        stream.markdown('```\n\n');
-        stream.markdown('**How to get Personal Access Token:**\n');
-        stream.markdown('1. Go to Azure DevOps → User Settings → Personal Access Tokens\n');
-        stream.markdown('2. Create new token with `Code (read)` and `Pull Request (read)` permissions\n');
-        stream.markdown('3. Copy and paste the token in VS Code settings\n\n');
-        return;
-    }
-    
-    try {
-        // Parse PR URL
-        stream.markdown('🔄 **Parsing PR URL...**\n\n');
-        const prInfo = parseAzureDevOpsPRUrl(prUrl);
-        
-        // Display PR info header using existing function
-        displayReviewHeader(stream, 'Azure DevOps PR Review', prUrl, null, null);
-        
-        stream.markdown(`**Organization:** ${prInfo.organization}\n`);
-        stream.markdown(`**Project:** ${prInfo.project}\n`);
-        stream.markdown(`**Repository:** ${prInfo.repository}\n`);
-        stream.markdown(`**PR ID:** #${prInfo.prId}\n\n`);
-        
-        // Fetch PR data
-        stream.markdown('🔄 **Fetching PR data from Azure DevOps...**\n\n');
-        const prData = await fetchAzureDevOpsPR(prInfo, config.token);
-        
-        stream.markdown('✅ **PR Data Retrieved Successfully**\n\n');
-        stream.markdown(`**Title:** ${prData.title}\n\n`);
-        stream.markdown(`**Author:** ${prData.createdBy.displayName}\n\n`);
-        stream.markdown(`**Status:** ${prData.status}\n\n`);
-        stream.markdown(`**Source Branch:** ${prData.sourceRefName.replace('refs/heads/', '')}\n\n`);
-        stream.markdown(`**Target Branch:** ${prData.targetRefName.replace('refs/heads/', '')}\n\n`);
-        stream.markdown(`**Created:** ${new Date(prData.creationDate).toLocaleDateString()}\n`);
-        if (prData.description) {
-            stream.markdown(`**Description:** ${prData.description.substring(0, 200)}${prData.description.length > 200 ? '...' : ''}\n`);
-        }
-        stream.markdown('\n');
-        
-        // Fetch PR diff
-        stream.markdown('🔄 **Fetching PR changes and generating diff...**\n\n');
-        const prDiff = await fetchAzureDevOpsPRDiff(prInfo, config.token);
-        
-        console.log('=== AZURE DEVOPS DIFF DEBUG ===');
-        console.log('PR Diff length:', prDiff ? prDiff.length : 0);
-        console.log('PR Diff preview (first 1000 chars):', prDiff ? prDiff.substring(0, 1000) : 'null');
-        console.log('=== END DIFF DEBUG ===');
-        
-        if (!prDiff || prDiff.trim().length === 0) {
-            stream.markdown('⚠️ **No changes found in this PR**\n\n');
-            stream.markdown('**Possible reasons:**\n');
-            stream.markdown('- PR has no file changes\n');
-            stream.markdown('- Insufficient permissions to access changes\n');
-            stream.markdown('- PR is in draft status\n\n');
-            return;
-        }
-        
-        // Check if we got meaningful diff content
-        if (prDiff.includes('// Branch comparison: edit') || prDiff.includes('// File modified:') || prDiff.includes('# Commit:')) {
-            stream.markdown('⚠️ **Azure DevOps API Limitation**\n\n');
-            stream.markdown('Azure DevOps REST API does not provide actual code content for external tools - only file metadata.\n\n');
-            stream.markdown('**Available Information:**\n');
-            stream.markdown('- File paths and names\n');
-            stream.markdown('- Change types (add/edit/delete)\n');
-            stream.markdown('- File sizes and object IDs\n');
-            stream.markdown('- Commit messages and authors\n\n');
-            stream.markdown('**To view actual code changes:**\n');
-            stream.markdown(`1. 🌐 **Web Interface:** [Open PR in Azure DevOps](${prUrl})\n`);
-            stream.markdown(`2. 💻 **Git CLI:** Clone repo and run \`git diff ${prData.targetRefName?.replace('refs/heads/', 'main') || 'main'}..${prData.sourceRefName?.replace('refs/heads/', '') || 'feature-branch'}\`\n`);
-            stream.markdown(`3. 🔧 **Azure CLI:** \`az repos pr diff --id ${prInfo.prId}\`\n\n`);
-            stream.markdown('**Metadata-Based Review:**\n');
-            stream.markdown('The AI will analyze available metadata (file paths, change types, commit messages) to provide architectural and structural insights.\n\n');
-            
-            // Extract file list from diff content
-            const fileMatches = prDiff.match(/Branch comparison: edit - (.+)/g);
-            if (fileMatches) {
-                // Filter to only show actual files (with extensions), not directories
-                const actualFiles = fileMatches.map(match => 
-                    match.replace('Branch comparison: edit - ', '')
-                ).filter(path => {
-                    // Only include paths that have file extensions (contain a dot after the last slash)
-                    const fileName = path.split('/').pop();
-                    return fileName && fileName.includes('.');
-                });
-                
-                if (actualFiles.length > 0) {
-                    stream.markdown('**Files in this PR:**\n');
-                    actualFiles.slice(0, 10).forEach(fullPath => {
-                        stream.markdown(`• ${fullPath}\n`); // Show full path of actual files only
-                    });
-                    if (actualFiles.length > 10) {
-                        stream.markdown(`• ... and ${actualFiles.length - 10} more files\n`);
-                    }
-                    stream.markdown('\n');
-                }
-            }
-        }
-        
-        stream.markdown('✅ **PR Changes Retrieved - Starting AI Analysis...**\n\n');
-        stream.markdown('---\n\n');
-        
-        // Use existing review logic with PR changes - PASS REQUEST PARAMETER
-        await reviewWithInMemoryTemplate(prDiff, stream, 'Azure DevOps PR Changes', null, context, request);
-        
-    } catch (error) {
-        stream.markdown(`❌ **Azure DevOps API Error:** ${error.message}\n\n`);
-        stream.markdown('**Troubleshooting Steps:**\n');
-        stream.markdown('1. **Check Token:** Ensure your Personal Access Token is valid and not expired\n');
-        stream.markdown('2. **Check Permissions:** Token needs `Code (read)` and `Pull Request (read)` scopes\n');
-        stream.markdown('3. **Check URL:** Ensure PR URL format is correct\n');
-        stream.markdown('4. **Check Access:** Ensure you have access to the organization/project\n');
-        stream.markdown('5. **Check Network:** Ensure you can access dev.azure.com\n\n');
-        stream.markdown('**PR URL Format:**\n');
-        stream.markdown('`https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{id}`\n\n');
-        console.error('Azure DevOps PR Review detailed error:', error);
-    }
-}
-
-// #endregion Azure DevOps PR Review Functions
-
-/**
- * Get file content from Azure DevOps repository
- * @param {string} organization - Azure DevOps organization
- * @param {string} project - Project name
- * @param {string} repository - Repository name  
- * @param {string} filePath - File path
- * @param {string} branch - Branch name
- * @param {string} token - Personal Access Token
- * @returns {string} File content
- */
-async function getFileContent(organization, project, repository, filePath, branch, token) {
-    const itemUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/items?path=${encodeURIComponent(filePath)}&version=${branch}&includeContent=true&api-version=7.0`;
-    
-    const response = await fetch(itemUrl, {
-        headers: {
-            'Authorization': `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
-            'Content-Type': 'application/json'
-        }
-    });
-    
-    if (!response.ok) {
-        if (response.status === 404) {
-            return ''; // File doesn't exist in this branch (normal for add/delete)
-        }
-        throw new Error(`Failed to get file content: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data.content || '';
 }
 
 function deactivate() {}

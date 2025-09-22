@@ -2,6 +2,20 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.12] - 2025-09-22
+
+### Added
+- 🔄 **Template System Refactoring**: Unified template loading with combined common + specific templates
+- 🎯 **Enhanced Model Fallback**: Improved quota limit detection and automatic model switching with clear messaging
+- 🛠️ **Code Modularization**: Extracted review-PR functionality to external scripts (scripts/review-pr.js)
+- ⚡ **Performance Optimization**: Reduced main extension.js from 2729 to ~1900 lines
+
+### Improved
+- 🔧 **Error Handling**: Better user messaging when AI models hit quota limits or become unavailable
+- 📝 **Template Management**: Templates now auto-combine common requirements with specific templates
+- 🏗️ **Architecture**: Cleaner separation of concerns with modular script organization
+- 🚀 **Maintainability**: Eliminated duplicate template loading code using DRY principles
+
 ## [1.0.11] - 2025-09-17
 
 ### Fixed

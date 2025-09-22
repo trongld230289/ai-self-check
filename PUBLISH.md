@@ -68,13 +68,13 @@ After publishing, your extension will be available at:
 
 For future updates:
 ```bash
-# Patch version (1.0.10 → 1.0.11)
+# Patch version (1.0.11 → 1.0.12)
 vsce publish patch
 
-# Minor version (1.0.10 → 1.1.0)
+# Minor version (1.0.12 → 1.1.0)
 vsce publish minor
 
-# Major version (1.0.10 → 2.0.0)  
+# Major version (1.0.12 → 2.0.0)  
 vsce publish major
 ```
 
