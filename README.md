@@ -1,6 +1,6 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.13-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.14-blue.svg)](https://github.com/trongld230289/ai-self-check)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -135,7 +135,15 @@ When you run the extension for the first time, it automatically generates defaul
 
 ## 🔄 Version History
 
-### v1.0.13 (Current)
+### v1.0.14 (Current)
+- 🚀 **Enhanced Azure DevOps PR Review**: Smart diff parsing that filters formatting/whitespace noise
+- 🎨 **Theme-Appropriate Icons**: PR review participant now has light/dark theme icons
+- 📊 **Real Change Statistics**: Accurate line counting with semantic analysis (shows real vs total changes)
+- 🔧 **Improved Connectivity**: Better error handling and retry logic for Azure DevOps API
+- 📋 **Enhanced Templates**: Updated PR review templates with structured analysis
+- 🛠️ **Better Fallbacks**: Improved mock data and error recovery for demo purposes
+
+### v1.0.13
 - 🔄 **Template System Refactoring**: Unified template loading with combined common + specific templates
 - 🎯 **Enhanced Model Fallback**: Improved quota limit detection and automatic model switching
 - 🛠️ **Code Modularization**: Extracted review-PR functionality to external scripts for better maintainability

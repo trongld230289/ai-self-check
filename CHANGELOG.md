@@ -2,6 +2,32 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.14] - 2025-09-25
+
+### 🚀 Added
+- Enhanced Azure DevOps PR review functionality with smart diff parsing
+- Real-time change statistics with semantic analysis (filters formatting noise)
+- Improved PR review templates and comprehensive analysis
+- Better connection handling and retry logic for Azure DevOps API
+- Theme-appropriate PR review icons (light/dark variants)
+
+### 🔧 Fixed
+- Code change detection and line counting precision
+- Extension stability improvements and error recovery
+- Connection timeout issues with corporate networks
+
+### 📈 Improved
+- PR review response templates with detailed analysis
+- Code quality assessment accuracy
+- User experience with better error messages and fallbacks
+- Performance optimizations for large diffs
+
+### 🎨 Changed
+- Updated PR review participant icon with theme support
+- Enhanced diff display with filtered real changes
+- Improved change summary calculations
+- Better mock data fallback for demo purposes
+
 ## [1.0.13] - 2025-09-25
 
 ### Current Release

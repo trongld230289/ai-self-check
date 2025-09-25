@@ -1,0 +1,7 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="#424242">
+    <!-- PR Review icon for light theme -->
+    <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
+    <path d="M5 5h6v1H5zm0 2h6v1H5zm0 2h4v1H5z"/>
+    <circle cx="12" cy="12" r="2" fill="#28a745"/>
+    <path d="M11.5 11.5l.5.5 1-1" stroke="white" stroke-width="0.5" fill="none"/>
+</svg>

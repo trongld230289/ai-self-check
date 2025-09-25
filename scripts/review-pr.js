@@ -11,7 +11,12 @@ const { execSync } = require('child_process');
 function initializePrReview(context) {
     // Create new chat participant for PR review
     const reviewPrParticipant = vscode.chat.createChatParticipant('review-pr', handleReviewPr);
-    reviewPrParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icon.svg'));
+    
+    // Set theme-appropriate PR review icon
+    reviewPrParticipant.iconPath = {
+        light: vscode.Uri.file(path.join(context.extensionPath, 'icons', 'pr-review-light.svg')),
+        dark: vscode.Uri.file(path.join(context.extensionPath, 'icons', 'pr-review-dark.svg'))
+    };
     
     // Register review PR command
     let reviewPullRequest = vscode.commands.registerCommand('aiSelfCheck.reviewPullRequest', async () => {
@@ -791,14 +796,31 @@ async function displayPrReviewResults(stream, prAnalysis) {
     stream.markdown(`**Performance**: ${data.analysis.performance}\n`);
     stream.markdown(`**Test coverage**: ${data.analysis.testCoverage}\n\n`);
     
-    // Code review comments if available
+    // Enhanced code review section
+    stream.markdown('## 💬 Code Review Summary\n\n');
+    
     if (data.analysis.codeReview && data.analysis.codeReview.length > 0) {
-        stream.markdown('## 💬 Code Review Comments\n\n');
         data.analysis.codeReview.forEach(comment => {
             stream.markdown(`${comment}\n\n`);
         });
+    } else {
+        // Provide structured review template
+        const totalChanges = data.fileChanges ? data.fileChanges.length : 0;
+        const hasChanges = totalChanges > 0;
+        
+        stream.markdown(`📁 **${totalChanges} file(s)** modified\n\n`);
+        
+        if (hasChanges) {
+            stream.markdown(`➕ **${data.fileChanges.reduce((sum, f) => sum + f.additions, 0)} lines** added\n\n`);
+            stream.markdown(`➖ **${data.fileChanges.reduce((sum, f) => sum + f.deletions, 0)} lines** removed\n\n`);
+        }
+        
+        stream.markdown(`📊 **Complexity**: ${data.analysis.quality.includes('simple') ? 'Simple' : 'Moderate'}\n\n`);
+        stream.markdown(`🎯 **Impact**: ${data.analysis.performance.includes('High') ? 'High' : 'Medium'}\n\n`);
+        stream.markdown(`🔍 Click "Show Diff in Editor" to view detailed changes\n\n`);
     }
     
+    stream.markdown('---\n\n');
     stream.markdown('💡 **Tip**: Paste Azure DevOps PR URL to review another PR or use `@review-pr PR #ID`.');
 }
 
