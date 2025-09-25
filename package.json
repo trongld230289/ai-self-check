@@ -2,9 +2,9 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "publisher": "trongld232",
-  "icon": "extension-icon.png",
+  "icon": "icons/extension-icon.png",
   "author": {
     "name": "Trong Le",
     "email": "trongld232@gmail.com"
@@ -68,6 +68,11 @@
         "command": "aiSelfCheck.setupAzureDevOps",
         "title": "Setup Azure DevOps Token",
         "category": "AI Self Check"
+      },
+      {
+        "command": "aiSelfCheck.showAvailableModels",
+        "title": "Show Available Language Models",
+        "category": "AI Self Check"
       }
     ],
     "menus": {
@@ -116,6 +121,12 @@
           "default": "",
           "description": "Default Azure DevOps project name",
           "scope": "application"
+        },
+        "aiSelfCheck.openai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for AI-powered code analysis (get from https://platform.openai.com/api-keys)",
+          "scope": "application"
         }
       }
     },
@@ -147,5 +158,8 @@
   "devDependencies": {
     "@types/vscode": "^1.80.0",
     "@vscode/vsce": "^2.19.0"
+  },
+  "dependencies": {
+    "diff": "^8.0.2"
   }
 }

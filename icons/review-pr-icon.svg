@@ -1,0 +1,20 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="8" cy="8" r="8" fill="#0078d4"/>
+  
+  <!-- PR/Review icon -->
+  <g fill="white">
+    <!-- Document/File -->
+    <rect x="3" y="2" width="7" height="9" rx="0.5" fill="none" stroke="white" stroke-width="0.8"/>
+    
+    <!-- Checkmark for review -->
+    <path d="M5 7L6.5 8.5L9 6" stroke="white" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Pull request arrows -->
+    <path d="M11 4L13 6L11 8" stroke="white" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M13 6H10" stroke="white" stroke-width="1" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Small Azure DevOps indicator -->
+  <circle cx="12.5" cy="12.5" r="1.5" fill="#00bcf2"/>
+</svg>

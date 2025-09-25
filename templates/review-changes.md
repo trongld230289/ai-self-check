@@ -13,9 +13,16 @@
 
 *** REVIEW COMMENT ***
 - 🚨 **Issue Type**: [Critical/Warning/Info/Suggestion]
-- 📝 **Problem**: [What's wrong]
-- 💡 **Solution**: [How to fix]
-- 🎯 **Impact**: [Why it matters]
+- 📝 **Problem**: [What's wrong - be SPECIFIC about the exact issue]
+- 💡 **Solution**: [EXACT steps to fix - include null safety, error handling, proper typing]
+- 🎯 **Impact**: [Why it matters - include potential consequences]
+
+IMPORTANT: When providing solutions, always consider:
+- Null/undefined safety checks
+- Proper TypeScript typing
+- Error handling and edge cases
+- Performance implications
+- Security best practices
 
 
 *** INTERNAL CHANGE EVALUATION (DO NOT DISPLAY) ***
@@ -23,46 +30,24 @@ Silently evaluate this change on:
 - Code Quality: Rate 1-5 (5=excellent, 1=poor)
 - Security Impact: Rate 1-5 (5=no issues, 1=critical vulnerability)  
 - Performance Impact: Rate 1-5 (5=no impact/improvement, 1=major degradation)
-- Change Score: Calculate average of above three scores
-
-Based on Change Score:
-- IF Change Score >= 4/5: Skip recommendations and show "✅ **GOOD CHANGE** - No recommendations needed"
-- IF Change Score < 4/5: Show full recommendations below
-
+- Change Score: is a smallest score of three score
 
 *** CONDITIONAL RECOMMENDATIONS (Only if Change Score < 4/5) ***
 IF Change Score >= 4/5: Skip this section and show "✅ **GOOD CHANGE** - No recommendations needed"
-
-## ANALYSIS INSTRUCTION
-
-You are a senior code reviewer. Follow this template format exactly:
-
-### Focus Areas:
-- Code quality and best practices
-- Potential bugs or issues  
-- Performance optimizations
-- Security concerns
-- Maintainability improvements
-
-### Required Analysis Structure:
-1. **Change Summary** - Files modified, lines added/removed
-2. **Review Checklist** - Code quality, performance, security, testing, architecture, business logic
-3. **Critical Issues** - Must-fix problems with specific file locations
-4. **Warnings & Suggestions** - Medium priority improvements
-5. **Impact Assessment** - Positive impact, risks, mitigation strategies
-6. **Final Recommendations** - Approval status, before/after merge actions
-7. **Overall Scoring** - Rate each category 1-5 stars with overall score out of 10
-
-### Project Context:
-Focus on real issues, security concerns, and actionable recommendations for this Angular TypeScript project. Provide specific code examples for improvements.
-
-Provide actionable feedback with specific examples.
 
 IF Change Score < 4/5: Show recommendations below:
 
 *** RECOMMENDED FIX ***
 ```typescript
-[Show the improved/fixed code/comment in detail]
+// PROVIDE SPECIFIC, ACTIONABLE FIXES WITH CONTEXT
+// Format: "Line X: Replace/Add/Remove [specific instruction]"
+// Always include null safety, error handling, and best practices
+// Show complete working solutions, not partial fixes
+
+[Provide exact lines to change with surrounding context]
+[Include proper null checks, error handling, and TypeScript best practices]
+[Show complete, working code that addresses ALL issues found]
+[Show the specific fix for this individual change]
 ```
 
 *** UNIT TEST RECOMMENDED ***

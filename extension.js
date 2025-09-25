@@ -8,6 +8,307 @@ const { URL } = require('url');
 // Session tracking for "Enter twice" functionality and change scores
 const chatSessions = new Map();
 
+// Token counting utilities
+/**
+ * Estimate token count from text using approximate ratios
+ * @param {string} text - Input text to count tokens for
+ * @returns {number} - Estimated token count
+ */
+function estimateTokenCount(text) {
+    if (!text || typeof text !== 'string') return 0;
+    
+    // Approximate token-to-character ratios for different languages
+    // English: ~4 characters per token
+    // Code: ~3.5 characters per token (more dense)
+    // Mixed content: ~3.8 characters per token
+    
+    const charCount = text.length;
+    const avgCharsPerToken = 3.8;
+    
+    return Math.ceil(charCount / avgCharsPerToken);
+}
+
+/**
+ * Normalize model family name for consistent pricing lookup
+ * @param {string} modelFamily - Raw model family name
+ * @returns {string} - Normalized model key
+ */
+function normalizeModelFamily(modelFamily) {
+    if (!modelFamily || typeof modelFamily !== 'string') {
+        return 'unknown';
+    }
+    
+    const family = modelFamily.toLowerCase().trim();
+    
+    // Claude models
+    if (family.includes('claude')) {
+        if (family.includes('4')) return 'claude-sonnet-4';
+        if (family.includes('3.7') && family.includes('thinking')) return 'claude-sonnet-3.7-thinking';
+        if (family.includes('3.7')) return 'claude-sonnet-3.7';
+        if (family.includes('3.5')) return 'claude-sonnet-3.5';
+        if (family.includes('sonnet')) return 'claude-sonnet-3.5'; // Default claude
+        return 'claude-sonnet-3.5';
+    }
+    
+    // GPT models
+    if (family.includes('gpt')) {
+        if (family.includes('5') && family.includes('mini')) return 'gpt-5-mini';
+        if (family.includes('5')) return 'gpt-5';
+        if (family.includes('4.1') || family.includes('4-1')) return 'gpt-4.1';
+        if (family.includes('4o') && family.includes('mini')) return 'gpt-4o-mini';
+        if (family.includes('4o')) return 'gpt-4o';
+        return 'gpt-4o'; // Default GPT
+    }
+    
+    // Gemini models
+    if (family.includes('gemini')) {
+        if (family.includes('2.0') && family.includes('flash')) return 'gemini-2.0-flash';
+        if (family.includes('2-0') && family.includes('flash')) return 'gemini-2.0-flash';
+        if (family.includes('2.5') && family.includes('pro')) return 'gemini-2.5-pro';
+        if (family.includes('2-5') && family.includes('pro')) return 'gemini-2.5-pro';
+        if (family.includes('flash')) return 'gemini-2.0-flash';
+        return 'gemini-2.5-pro'; // Default gemini
+    }
+    
+    // O-series models
+    if (family.includes('o3') && family.includes('mini')) return 'o3-mini';
+    if (family.includes('o4') && family.includes('mini')) return 'o4-mini';
+    
+    // Grok models
+    if (family.includes('grok')) {
+        if (family.includes('code') && family.includes('fast')) return 'grok-code-fast-1';
+        return 'grok-code-fast-1';
+    }
+    
+    // Unknown model
+    return 'unknown';
+}
+
+/**
+ * Get estimated cost for token usage based on model
+ * @param {number} inputTokens - Input token count
+ * @param {number} outputTokens - Output token count
+ * @param {string} modelFamily - Model family name
+ * @returns {object} - Cost breakdown
+ */
+function estimateCost(inputTokens, outputTokens, modelFamily) {
+    // Pricing per 1M tokens (last updated: 2025-09-24)
+    const pricing = {
+        // Claude Models
+        'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
+        'claude-sonnet-3.5': { input: 3.0, output: 15.0 },
+        'claude-3-7-sonnet': { input: 3.0, output: 15.0 },
+        'claude-sonnet-3.7': { input: 3.0, output: 15.0 },
+        'claude-3-7-thinking': { input: 3.75, output: 18.75 }, // 1.25x multiplier
+        'claude-sonnet-3.7-thinking': { input: 3.75, output: 18.75 },
+        'claude-4': { input: 3.0, output: 15.0 },
+        'claude-sonnet-4': { input: 3.0, output: 15.0 },
+        
+        // GPT Models  
+        'gpt-4.1': { input: 2.5, output: 10.0 },
+        'gpt-4-1': { input: 2.5, output: 10.0 },
+        'gpt-4o': { input: 2.5, output: 10.0 },
+        'gpt-4o-mini': { input: 0.15, output: 0.6 },
+        'gpt-5': { input: 5.0, output: 15.0 }, // Estimated premium pricing
+        'gpt-5-mini': { input: 0.50, output: 1.5 }, // Estimated
+        
+        // Gemini Models
+        'gemini-2.0-flash': { input: 0.075, output: 0.3 }, // 0.25x multiplier
+        'gemini-2-0-flash': { input: 0.075, output: 0.3 },
+        'gemini-2.5-pro': { input: 1.25, output: 5.0 },
+        'gemini-2-5-pro': { input: 1.25, output: 5.0 },
+        'gemini': { input: 1.25, output: 5.0 }, // Default gemini
+        
+        // O-series Models
+        'o3-mini': { input: 0.25, output: 1.0 }, // 0.33x estimated
+        'o4-mini': { input: 0.25, output: 1.0 }, // 0.33x estimated
+        'o4-mini-preview': { input: 0.25, output: 1.0 },
+        
+        // Grok Models
+        'grok-code-fast-1': { input: 1.0, output: 3.0 }, // Estimated
+        'grok-code-fast-1-preview': { input: 1.0, output: 3.0 },
+        
+        // Unknown/Fallback
+        'unknown': { input: 0, output: 0 }
+    };
+    
+    // Normalize model family name for lookup
+    const normalizedFamily = normalizeModelFamily(modelFamily);
+    console.log(`🔍 Cost calculation - Original: "${modelFamily}" -> Normalized: "${normalizedFamily}"`);
+    
+    // Get pricing or fallback to unknown
+    const modelPricing = pricing[normalizedFamily] || pricing['unknown'];
+    console.log(`💰 Pricing found:`, modelPricing);
+    
+    const inputCost = (inputTokens / 1000000) * modelPricing.input;
+    const outputCost = (outputTokens / 1000000) * modelPricing.output;
+    const totalCost = inputCost + outputCost;
+    
+    return {
+        inputCost: inputCost,
+        outputCost: outputCost,
+        totalCost: totalCost,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        pricing: modelPricing // Include pricing info for display
+    };
+}
+
+/**
+ * Strip internal blocks from AI output before displaying to user
+ * @param {string} output - The raw AI output text
+ * @returns {string} - Cleaned output with internal blocks removed
+ */
+function stripInternalBlocks(output) {
+    // Remove <INTERNAL_ONLY>...</INTERNAL_ONLY> blocks
+    let cleanedOutput = output.replace(/<INTERNAL_ONLY>[\s\S]*?<\/INTERNAL_ONLY>/g, '');
+    
+    // // Remove HTML comments (<!-- ... -->)
+    // cleanedOutput = cleanedOutput.replace(/<!--[\s\S]*?-->/g, '');
+
+    // // Clean up multiple newlines
+    // cleanedOutput = cleanedOutput.replace(/\n{3,}/g, '\n\n');
+    
+    return cleanedOutput.trim();
+}
+
+/**
+ * Unified AI execution function with token counting, streaming, and fallback logic
+ * @param {string} userPrompt - The prompt to send to the AI model
+ * @param {object} model - The AI model to use
+ * @param {object} stream - Chat stream for output
+ * @param {string} reviewType - Type of review ('Changes' or 'File')
+ * @param {number} attemptCount - Current attempt number for recursion
+ * @returns {Promise<boolean>} - true if successful, false if failed
+ */
+async function executeAIReview(userPrompt, model, stream, reviewType = 'Analysis', attemptCount = 0, originalRequestedModel = null) {
+    const maxAttempts = 3;
+    
+    try {
+        // Calculate input tokens and estimated cost (for final summary only)
+        const inputTokens = estimateTokenCount(userPrompt);
+        const messages = [vscode.LanguageModelChatMessage.User(userPrompt)];
+        
+        console.log(`📤 Attempt ${attemptCount + 1}: Sending request to model:`, model.family);
+        
+        const chatResponse = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        
+        // Show successful model usage with accurate status  
+        const reviewIcon = reviewType === 'Changes' ? '🔍' : '📄';
+        
+        // Determine if this is really the originally requested model
+        let modelStatus;
+        if (attemptCount === 0) {
+            // First attempt - check if this matches original request
+            if (originalRequestedModel && model.family === originalRequestedModel) {
+                modelStatus = 'selected model';
+            } else if (originalRequestedModel && model.family !== originalRequestedModel) {
+                modelStatus = `fallback model (${originalRequestedModel} not available)`;
+            } else {
+                // No original model info, assume this is user's choice
+                modelStatus = 'selected model';
+            }
+        } else {
+            // Subsequent attempts are always fallbacks
+            modelStatus = `fallback model (attempt ${attemptCount + 1})`;
+        }
+        
+        stream.markdown(`🤖 **Streaming ${reviewType} ${reviewIcon}** (using ${model.family} - ${modelStatus}):\n\n`);
+        
+        let fragmentCount = 0;
+        let outputText = '';
+        
+        // Collect all output first
+        for await (const fragment of chatResponse.text) {
+            outputText += fragment;
+            fragmentCount++;
+            
+            // Progress indicator every 50 fragments
+            if (fragmentCount % 50 === 0) {
+                console.log(`Streaming progress: ${fragmentCount} fragments processed`);
+            }
+        }
+        
+        // Clean the output to remove internal blocks
+        const cleanedOutput = stripInternalBlocks(outputText);
+        console.log(`🧹 Cleaned output: ${outputText.length} chars -> ${cleanedOutput.length} chars`);
+        
+        // Display the cleaned output
+        stream.markdown('---\n\n');
+        stream.markdown(cleanedOutput);
+        
+        // Calculate output tokens and total cost
+        const outputTokens = estimateTokenCount(outputText);
+        const finalCost = estimateCost(inputTokens, outputTokens, model.family);
+        
+        // Show completion with token statistics
+        const completionStatus = attemptCount === 0 ? 'original model' : `fallback model (${model.family})`;
+        stream.markdown(`\n\n---\n\n`);
+        stream.markdown(`📊 **Token Usage Summary:**\n`);
+        stream.markdown(`- **Input tokens**: ${inputTokens.toLocaleString()} ($${finalCost.pricing.input.toFixed(2)}/1M)\n`);
+        stream.markdown(`- **Output tokens**: ${outputTokens.toLocaleString()} ($${finalCost.pricing.output.toFixed(2)}/1M tokens)\n`);
+        stream.markdown(`- **Total tokens**: ${(inputTokens + outputTokens).toLocaleString()}\n`);
+        stream.markdown(`- **Estimated cost**: $${finalCost.totalCost.toFixed(4)} (Input: $${finalCost.inputCost.toFixed(4)} | Output: $${finalCost.outputCost.toFixed(4)})\n`);
+        stream.markdown(`- **Model used**: ${model.family}\n\n`);
+        stream.markdown(`✅ **${reviewType} Analysis complete** - successfully used ${completionStatus}\n\n`);
+        
+        console.log(`✅ ${reviewType} review completed successfully with model:`, model.family);
+        console.log(`📊 Token usage - Input: ${inputTokens}, Output: ${outputTokens}, Cost: $${finalCost.totalCost.toFixed(4)}`);
+        
+        return true; // Success
+        
+    } catch (modelError) {
+        console.error(`❌ Model ${model.family} failed (attempt ${attemptCount + 1}):`, modelError);
+        
+        // If we've reached max attempts, throw the error
+        if (attemptCount >= maxAttempts - 1) {
+            throw new Error(`All ${maxAttempts} model attempts failed. Last error: ${modelError.message}`);
+        }
+        
+        // Handle quota/rate limit errors
+        if (modelError.message && (
+            modelError.message.includes('exhausted your premium model quota') ||
+            modelError.message.includes('quota') ||
+            modelError.message.includes('rate limit') ||
+            modelError.message.includes('too many requests') ||
+            modelError.message.includes('limit exceeded')
+        )) {
+            stream.markdown(`🚫 **${model.family} quota exceeded** - Switching to alternative model...\n\n`);
+            stream.markdown(`💡 **Reason:** Premium model quota exhausted. Automatically falling back to available model.\n\n`);
+            
+            try {
+                const fallbackModel = await getFallbackModel(model, stream, attemptCount + 1);
+                return await executeAIReview(userPrompt, fallbackModel, stream, reviewType, attemptCount + 1, originalRequestedModel || model.family);
+            } catch (fallbackError) {
+                stream.markdown(`❌ **Fallback failed:** ${fallbackError.message}\n\n`);
+                throw new Error(`Quota exceeded and fallback failed: ${fallbackError.message}`);
+            }
+        }
+        // Handle model not supported errors
+        else if (modelError.message && (
+            modelError.message.includes('model_not_supported') || 
+            modelError.message.includes('not supported') ||
+            modelError.message.includes('model is not available') ||
+            modelError.message.includes('The requested model is not supported')
+        )) {
+            stream.markdown(`❌ **${model.family} not supported** - Switching to alternative model...\n\n`);
+            stream.markdown(`💡 **Reason:** Model not available in current environment. Automatically falling back.\n\n`);
+            
+            try {
+                const fallbackModel = await getFallbackModel(model, stream, attemptCount + 1);
+                return await executeAIReview(userPrompt, fallbackModel, stream, reviewType, attemptCount + 1, originalRequestedModel || model.family);
+            } catch (fallbackError) {
+                stream.markdown(`❌ **Fallback failed:** ${fallbackError.message}\n\n`);
+                throw new Error(`Model not supported and fallback failed: ${fallbackError.message}`);
+            }
+        } else {
+            // Other errors, don't retry
+            stream.markdown(`❌ **${model.family} failed** (attempt ${attemptCount + 1}): ${modelError.message}\n\n`);
+            throw modelError;
+        }
+    }
+}
+
 /**
  * Handle "Enter twice" functionality for chat participants
  * @param {string} participantType - 'review-file' or 'review-changes'
@@ -238,7 +539,10 @@ function activate(context) {
     const reviewChangesParticipant = vscode.chat.createChatParticipant('review-changes', async (request, context, stream, token) => {
         try {
             console.log('🎯 review-changes participant called');
-            console.log('📥 Request.model:', request.model?.family);
+            console.log('📥 Request object:', request);
+            console.log('📥 Request.model:', request.model);
+            console.log('📥 Request.model?.family:', request.model?.family);
+            console.log('📥 Request.model?.id:', request.model?.id);
             
             const input = request.prompt.trim();
             
@@ -359,12 +663,19 @@ function activate(context) {
     });
 
     // Set custom icons for chat participants
-    reviewChangesParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icon.svg'));
-    reviewFileParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icon.svg'));
+    reviewChangesParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icons', 'icon.svg'));
+    reviewFileParticipant.iconPath = vscode.Uri.file(path.join(context.extensionPath, 'icons', 'icon.svg'));
 
     // Initialize PR review functionality from external script
     const prReview = require('./scripts/review-pr');
     const { reviewPrParticipant, reviewPullRequest } = prReview.initializePrReview(context);
+    
+    // Initialize MemDiff provider for PR diffs
+    global.memDiffProvider = prReview.registerMemDiffProvider(context);
+    console.log('✅ MemDiff provider initialized for PR reviews');
+
+    // Register command to show available models
+    const showModelsCommand = vscode.commands.registerCommand('aiSelfCheck.showAvailableModels', showAvailableModels);
 
     context.subscriptions.push(
         reviewGitChanges, 
@@ -381,7 +692,8 @@ function activate(context) {
         reviewFileParticipant,
         reviewPrParticipant,
         reviewPullRequest,
-        reviewPrParticipant
+        reviewPrParticipant,
+        showModelsCommand
     );
 }
 
@@ -936,105 +1248,18 @@ async function reviewChanges(diffContent, stream, changeType, selectedModel = nu
             throw new Error('No AI models available');
         }
             
-        const messages = [
-            vscode.LanguageModelChatMessage.User(`You are a senior code reviewer. Analyze this git diff following the review-changes.md template format:
+        const userPrompt = `You are a senior code reviewer. Analyze this git diff following the review-changes.md template format:
             ${finalContent}
-            Follow the template structure for comprehensive analysis.`)
-        ];
+            Follow the template structure for comprehensive analysis.`;
         
         stream.markdown('🔄 **AI Analysis in progress...** (streaming git changes)\n\n');
         
-        // Try with selected model first, fallback if model not supported
-        let currentModel = model;
-        let attemptCount = 0;
-        const maxAttempts = 3;
-        
-        while (attemptCount < maxAttempts) {
-            try {
-                console.log(`📤 Attempt ${attemptCount + 1}: Sending request to model:`, currentModel.family);
-                
-                const chatResponse = await currentModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
-                
-                // Show successful model usage
-                const modelStatus = attemptCount === 0 ? 'selected model' : `fallback model (attempt ${attemptCount + 1})`;
-                stream.markdown(`🤖 **Streaming Git Changes Analysis** (using ${currentModel.family} - ${modelStatus}):\n\n`);
-                
-                let fragmentCount = 0;
-                let isFirstFragment = true;
-                for await (const fragment of chatResponse.text) {
-                    if (isFirstFragment) {
-                        // Show that streaming has started
-                        stream.markdown('---\n\n');
-                        isFirstFragment = false;
-                    }
-                    stream.markdown(fragment);
-                    fragmentCount++;
-                    
-                    // Add a small progress indicator every 50 fragments
-                    if (fragmentCount % 50 === 0) {
-                        console.log(`Streaming progress: ${fragmentCount} fragments processed`);
-                    }
-                }
-                
-                // Add completion indicator
-                const completionStatus = attemptCount === 0 ? 'original model' : `fallback model (${currentModel.family})`;
-                stream.markdown(`\n\n✅ **Analysis complete** - successfully used ${completionStatus}\n\n`);
-                console.log('✅ Review completed successfully with model:', currentModel.family);
-                return; // Success, exit function
-                
-            } catch (modelError) {
-                console.error(`❌ Model ${currentModel.family} failed (attempt ${attemptCount + 1}):`, modelError);
-                
-                // Check for quota/rate limit errors first
-                if (modelError.message && (
-                    modelError.message.includes('exhausted your premium model quota') ||
-                    modelError.message.includes('quota') ||
-                    modelError.message.includes('rate limit') ||
-                    modelError.message.includes('too many requests') ||
-                    modelError.message.includes('limit exceeded')
-                )) {
-                    stream.markdown(`🚫 **${currentModel.family} quota exceeded** - Switching to alternative model...\n\n`);
-                    stream.markdown(`💡 **Reason:** Premium model quota exhausted. Automatically falling back to available model.\n\n`);
-                    
-                    // Use unified fallback function for quota limits
-                    try {
-                        currentModel = await getFallbackModel(currentModel, stream, attemptCount + 1);
-                        attemptCount++;
-                        continue; // Try again with new model
-                    } catch (fallbackError) {
-                        stream.markdown(`❌ **Fallback failed:** ${fallbackError.message}\n\n`);
-                        throw new Error(`Quota exceeded and fallback failed: ${fallbackError.message}`);
-                    }
-                }
-                // Check if it's a model_not_supported error
-                else if (modelError.message && (
-                    modelError.message.includes('model_not_supported') || 
-                    modelError.message.includes('not supported') ||
-                    modelError.message.includes('model is not available') ||
-                    modelError.message.includes('The requested model is not supported')
-                )) {
-                    stream.markdown(`❌ **${currentModel.family} not supported** - Switching to alternative model...\n\n`);
-                    stream.markdown(`💡 **Reason:** Model not available in current environment. Automatically falling back.\n\n`);
-                    
-                    // Use unified fallback function
-                    try {
-                        currentModel = await getFallbackModel(currentModel, stream, attemptCount + 1);
-                        attemptCount++;
-                        continue; // Try again with new model
-                    } catch (fallbackError) {
-                        stream.markdown(`❌ **Fallback failed:** ${fallbackError.message}\n\n`);
-                        throw new Error(`Model not supported and fallback failed: ${fallbackError.message}`);
-                    }
-                } else {
-                    // Other errors, don't retry
-                    stream.markdown(`❌ **${currentModel.family} failed** (attempt ${attemptCount + 1}): ${modelError.message}\n\n`);
-                    throw modelError;
-                }
-            }
+        // Use the unified AI execution function
+        const success = await executeAIReview(userPrompt, model, stream, 'Changes');
+        if (!success) {
+            // Model not available, review was stopped
+            return;
         }
-        
-        // If we get here, all attempts failed
-        throw new Error(`All ${maxAttempts} model attempts failed`);
         
     } catch (error) {
         // Safe fallback without command triggers
@@ -1663,83 +1888,14 @@ Provide comprehensive analysis with specific examples and actionable recommendat
                 stream.markdown('🔄 **Initializing File Analysis...** \n\n');
                 stream.markdown('⏳ **Preparing model:** `' + model.family + '`\n\n');
 
-                const messages = [vscode.LanguageModelChatMessage.User(reviewPrompt)];
                 stream.markdown('🚀 **Starting comprehensive file review...**\n\n');
-
-                let currentModel = model;
-                let attemptCount = 0;
-                const maxAttempts = 3;
-
-                while (attemptCount < maxAttempts) {
-                    try {
-                        console.log(`📤 File review attempt ${attemptCount + 1}:`, currentModel.family);
-                        const response = await currentModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
-                        const modelStatus = attemptCount === 0 ? 'selected model' : `fallback model (attempt ${attemptCount + 1})`;
-
-                        // Streaming header
-                        stream.markdown('---\n\n');
-                        stream.markdown(`# 📄 File Review Results (using ${currentModel.family} - ${modelStatus})\n\n`);
-                        let fragmentCount = 0; let wordCount = 0; let isFirst = true;
-                        for await (const fragment of response.text) {
-                            if (isFirst) { stream.markdown('📡 **Live streaming analysis results...**\n\n'); isFirst = false; }
-                            stream.markdown(fragment);
-                            fragmentCount++; wordCount += fragment.split(/\s+/).length;
-                            if (fragmentCount % 25 === 0) console.log(`📊 File review progress: ${fragmentCount} fragments ~${wordCount} words`);
-                        }
-                        const completionLabel = attemptCount === 0 ? 'original model' : `fallback model (${currentModel.family})`;
-                        stream.markdown(`\n\n🎉 **Streaming complete** – ${completionLabel}. (${fragmentCount} fragments, ~${wordCount} words)\n\n---\n\n`);
-                        console.log('✅ File review done with', currentModel.family);
-                        break; // success
-                    } catch (modelErr) {
-                        console.error(`❌ File model failure (${currentModel.family}) attempt ${attemptCount + 1}:`, modelErr);
-                        
-                        // Check for quota/rate limit errors first
-                        if (modelErr.message && (
-                            modelErr.message.includes('exhausted your premium model quota') ||
-                            modelErr.message.includes('quota') ||
-                            modelErr.message.includes('rate limit') ||
-                            modelErr.message.includes('too many requests') ||
-                            modelErr.message.includes('limit exceeded')
-                        )) {
-                            stream.markdown(`🚫 **${currentModel.family} quota exceeded** - Switching to alternative model...\n\n`);
-                            stream.markdown(`💡 **Reason:** Premium model quota exhausted. Automatically falling back to available model.\n\n`);
-                            
-                            try {
-                                currentModel = await getFallbackModel(currentModel, stream, attemptCount + 1);
-                                attemptCount++;
-                                continue;
-                            } catch (fallbackErr) {
-                                stream.markdown(`❌ **Fallback failed:** ${fallbackErr.message}\n\n`);
-                                throw new Error(`Quota exceeded and fallback failed: ${fallbackErr.message}`);
-                            }
-                        }
-                        // Check if it's a model not supported error
-                        else if (modelErr.message && (
-                            modelErr.message.includes('model_not_supported') ||
-                            modelErr.message.includes('not supported') ||
-                            modelErr.message.includes('model is not available') ||
-                            modelErr.message.includes('The requested model is not supported')
-                        )) {
-                            stream.markdown(`❌ **${currentModel.family} not supported** - Switching to alternative model...\n\n`);
-                            stream.markdown(`💡 **Reason:** Model not available in current environment. Automatically falling back.\n\n`);
-                            
-                            try {
-                                currentModel = await getFallbackModel(currentModel, stream, attemptCount + 1);
-                                attemptCount++;
-                                continue;
-                            } catch (fallbackErr) {
-                                stream.markdown(`❌ **Fallback failed:** ${fallbackErr.message}\n\n`);
-                                throw new Error(`Model not supported and fallback failed: ${fallbackErr.message}`);
-                            }
-                        } else {
-                            stream.markdown(`❌ **${currentModel.family} failed:** ${modelErr.message}\n\n`);
-                            throw modelErr;
-                        }
-                    }
-                }
-
-                if (attemptCount >= maxAttempts) {
-                    stream.markdown(`❌ **All ${maxAttempts} model attempts failed** – using basic analysis.\n\n`);
+                
+                // Use the unified AI execution function
+                const success = await executeAIReview(reviewPrompt, model, stream, 'File');
+                
+                if (!success) {
+                    // AI analysis failed, falling back to basic analysis
+                    stream.markdown('⚠️ **AI analysis failed - using basic analysis**\n\n');
                     await performBasicFileAnalysis(content, stream, fileExtension);
                 }
             } else {
@@ -1822,14 +1978,21 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
     let models = [];
     
     console.log('=== getUnifiedModel DEBUG START ===');
-    console.log('getUnifiedModel - request.model:', request?.model?.family);
+    console.log('getUnifiedModel - request object:', request);
+    console.log('getUnifiedModel - request.model:', request?.model);
+    console.log('getUnifiedModel - request.model?.family:', request?.model?.family);
+    console.log('getUnifiedModel - request.model?.id:', request?.model?.id);
     
     // PRIORITY 1: Check request.model first (this is where VS Code puts the selected model!)
     if (request && request.model) {
         console.log('✅ Found model in request.model:', request.model);
+        console.log('✅ Model family:', request.model.family);
+        console.log('✅ Model id:', request.model.id);
         return request.model;
     } else {
         console.log('❌ No model found in request.model');
+        console.log('❌ Request is:', request ? 'valid object' : 'null/undefined');
+        console.log('❌ Request.model is:', request?.model ? 'valid' : 'null/undefined');
     }
     
     // PRIORITY 2: Use passed requestedModel object
@@ -1880,37 +2043,47 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
     // Get available models and try to find the currently selected one
     try {
         models = await vscode.lm.selectChatModels();
-        console.log('📋 All available models:', models.map(m => `${m.family} (${m.vendor})`));
+        console.log('📋 All available models:', models.map(m => `${m.family || m.id} (${m.vendor || 'Unknown'})`));
         
         if (models.length > 0) {
-            // FALLBACK 1: Try to find Claude 4 first (preferred AI model)
-            const claude4Model = models.find(m => 
-                m.family.toLowerCase().includes('claude-sonnet-4') || 
-                m.family.toLowerCase().includes('sonnet-4')
-            );
-            
-            if (claude4Model) {
-                console.log('Fallback 1 - Using Claude 4 model:', claude4Model);
-                models = [claude4Model];
-            } else {
-                console.log('❌ Claude 4 not found, trying GPT-4.1...');
-                
-                // FALLBACK 2: Try to find GPT-4.1 as second choice
-                const gpt41Model = models.find(m => 
-                    m.family.toLowerCase().includes('gpt-4.1') ||
-                    m.family.toLowerCase().includes('gpt-4-1')
-                );
-                
-                if (gpt41Model) {
-                    console.log('Fallback 2 - Using GPT-4.1 model:', gpt41Model);
-                    models = [gpt41Model];
-                } else {
-                    console.log('❌ GPT-4.1 not found, using first available...');
+            // FALLBACK 1: Smart model selection based on quality preference
+            const modelPreferences = [
+                // Tier 1: Latest Claude models (best for code review)
+                'claude-sonnet-4', 'claude-4', 'claude-3.7-sonnet', 'claude-3.5-sonnet',
+                // Tier 2: Latest GPT models  
+                'gpt-5', 'gpt-4.1', 'gpt-4o', 'gpt-4-turbo', 'gpt-4',
+                // Tier 3: Other advanced models
+                'o4-mini', 'o3-mini', 'gemini-2.5-pro', 'gemini-2.0-flash', 
+                // Tier 4: Fallback options
+                'gpt-3.5-turbo', 'grok-code'
+            ];
+
+            // Try to find best available model based on preference order
+            for (const preference of modelPreferences) {
+                selectedModel = models.find(m => {
+                    const modelName = (m.family || m.id).toLowerCase();
+                    const prefLower = preference.toLowerCase();
                     
-                    // FALLBACK 3: Use first available model
-                    console.log('Fallback 3 - Using first available model:', models[0]);
-                    models = [models[0]];
+                    // Exact match or contains match
+                    return modelName === prefLower || 
+                           modelName.includes(prefLower) ||
+                           modelName.replace(/[-_]/g, '').includes(prefLower.replace(/[-_]/g, ''));
+                });
+                
+                if (selectedModel) {
+                    console.log(`✅ Found preferred model: ${selectedModel.family || selectedModel.id} (preference: ${preference})`);
+                    break;
                 }
+            }
+
+            // If no preferred model found, use first available
+            if (!selectedModel && models.length > 0) {
+                selectedModel = models[0];
+                console.log(`⚠️ No preferred model found, using first available: ${selectedModel.family || selectedModel.id}`);
+            }
+
+            if (selectedModel) {
+                models = [selectedModel];
             }
         }
     } catch (error) {
@@ -2040,9 +2213,78 @@ function displayReviewHeader(stream, reviewType, filePath, diffLength = null, te
     }
 }
 
+/**
+ * Get all available language models from VS Code API
+ * @returns {Promise<Array>} Array of available models with details
+ */
+async function getAvailableModels() {
+    try {
+        const models = await vscode.lm.selectChatModels();
+        return models.map(model => ({
+            id: model.id,
+            family: model.family || model.id,
+            name: model.name || model.family || model.id,
+            vendor: model.vendor,
+            version: model.version,
+            maxInputTokens: model.maxInputTokens,
+            countTokens: model.countTokens ? 'supported' : 'not supported'
+        }));
+    } catch (error) {
+        console.error('Error fetching available models:', error);
+        return [];
+    }
+}
+
+/**
+ * Display available models information
+ */
+async function showAvailableModels() {
+    try {
+        const models = await getAvailableModels();
+        
+        if (models.length === 0) {
+            vscode.window.showInformationMessage('❌ No language models available');
+            return;
+        }
+
+        const modelList = models.map(model => 
+            `• **${model.family}** (${model.id})\n  - Vendor: ${model.vendor || 'Unknown'}\n  - Max tokens: ${model.maxInputTokens || 'Unknown'}\n  - Token counting: ${model.countTokens}`
+        ).join('\n\n');
+
+        const message = `🤖 **Available Language Models** (${models.length} found):\n\n${modelList}`;
+        
+        // Show in information message (for quick view)
+        const action = await vscode.window.showInformationMessage(
+            `Found ${models.length} available language models`,
+            'Show Details',
+            'Copy List'
+        );
+
+        if (action === 'Show Details') {
+            // Create and show in untitled document for detailed view
+            const doc = await vscode.workspace.openTextDocument({
+                content: message,
+                language: 'markdown'
+            });
+            await vscode.window.showTextDocument(doc);
+        } else if (action === 'Copy List') {
+            // Copy to clipboard
+            const simpleList = models.map(m => `${m.family} (${m.id})`).join('\n');
+            await vscode.env.clipboard.writeText(simpleList);
+            vscode.window.showInformationMessage('✅ Model list copied to clipboard');
+        }
+
+    } catch (error) {
+        console.error('Error showing available models:', error);
+        vscode.window.showErrorMessage(`Error fetching models: ${error.message}`);
+    }
+}
+
 function deactivate() {}
 
 module.exports = {
     activate,
-    deactivate
+    deactivate,
+    getAvailableModels,
+    showAvailableModels
 };

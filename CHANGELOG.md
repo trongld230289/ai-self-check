@@ -2,6 +2,41 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.13] - 2025-09-25
+
+### Current Release
+- 🎯 **Current Version**: Reverted to stable version 1.0.13
+- 📋 **Template Enhancements**: Improved review template consistency and output formatting
+- 🔧 **Bug Fixes**: Fixed recommendation formatting and template logic improvements
+- � **Smart Recommendations**: Enhanced conditional logic for better recommendation accuracy
+- 🛠️ **Maintainability**: Reduced code complexity by consolidating common AI execution logic
+- ⚡ **Performance**: Streamlined fallback logic and error handling for better reliability
+
+### Technical
+- Unified AI execution reduces ~200 lines of duplicate code
+- Consistent error handling and fallback logic across all functions
+- Single source of truth for token counting and cost estimation
+
+## [1.0.14] - 2025-09-24
+
+### Added
+- 📊 **Token Counting & Cost Estimation**: Real-time display of input/output token usage and estimated costs
+- 💰 **Cost Transparency**: Shows estimated costs for different AI models (Claude, GPT-4, Gemini)
+- 🎯 **Template Optimization**: Helps users optimize templates by showing token impact
+- 📈 **Usage Analytics**: Detailed breakdown of token consumption for better cost management
+
+### Improved
+- 🔍 **Smart Cost Calculation**: Accurate pricing for Claude 3.5 Sonnet, GPT-4o, GPT-4o-mini, and Gemini models
+- 📱 **User Experience**: Clear display of costs before and after AI requests
+- 🏗️ **Performance Monitoring**: Real-time token tracking during streaming responses
+
+## [1.0.13] - 2025-09-24
+
+### Improved
+- 📁 **Icon Organization**: Moved all extension icons to dedicated `icons/` folder for better organization
+- 🔧 **Path Management**: Updated all icon references in package.json and extension.js to use new folder structure
+- 🏗️ **Code Structure**: Improved extension file organization and maintainability
+
 ## [1.0.12] - 2025-09-22
 
 ### Added
