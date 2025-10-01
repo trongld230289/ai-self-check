@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -31,7 +32,7 @@
             background: white;
             margin: 20px;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             overflow-y: auto;
             animation: slideIn 0.5s ease-in-out;
         }
@@ -41,8 +42,15 @@
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateX(30px); }
-            to { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         h1 {
@@ -78,6 +86,7 @@
         .pain-points li {
             margin: 10px 0;
             padding-left: 10px;
+            list-style: none;
         }
 
         .solution-box {
@@ -125,10 +134,11 @@
             background: white;
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
 
-        th, td {
+        th,
+        td {
             padding: 15px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
@@ -178,7 +188,7 @@
             position: fixed;
             top: 30px;
             right: 30px;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.7);
             color: white;
             padding: 10px 20px;
             border-radius: 20px;
@@ -232,76 +242,94 @@
         }
     </style>
 </head>
+
 <body>
     <div class="presentation-container">
         <div class="slide-counter">
-            <span id="current-slide">1</span> / <span id="total-slides">11</span>
+            <span id="current-slide">1</span> / <span id="total-slides">10</span>
         </div>
 
         <!-- Slide 1: Title -->
         <div class="slide active">
-            <div style="text-align: center; padding-top: 60px;">
-                <h1 style="font-size: 3em; color: #667eea; margin-bottom: 20px;">
-                    🎯 AI Self Check: Solving Real Developer Pain Points
-                </h1>
-                <div class="solution-box" style="font-size: 1.4em; margin-top: 30px;">
-                    <strong>🚀 Transform Every Developer Into a Quality Expert</strong>
-                    <p style="margin-top: 15px; font-size: 0.9em;">One-click AI-powered code review that learns your team's standards and prevents bugs before they reach production</p>
+            <div style="text-align: left; padding-top: 60px;">
+                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+                    <svg width="64" height="64" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg"
+                        style="margin-right: 20px;">
+                        <!-- Background circle -->
+                        <circle cx="64" cy="64" r="60" fill="#1e293b" stroke="#0ea5e9" stroke-width="4" />
+
+                        <!-- AI Brain pattern -->
+                        <circle cx="40" cy="40" r="6" fill="#22d3ee" />
+                        <circle cx="64" cy="35" r="8" fill="#3b82f6" />
+                        <circle cx="88" cy="40" r="6" fill="#8b5cf6" />
+
+                        <circle cx="30" cy="64" r="6" fill="#10b981" />
+                        <circle cx="64" cy="64" r="10" fill="#ef4444" />
+                        <circle cx="98" cy="64" r="6" fill="#f59e0b" />
+
+                        <circle cx="40" cy="88" r="6" fill="#ec4899" />
+                        <circle cx="64" cy="93" r="8" fill="#84cc16" />
+                        <circle cx="88" cy="88" r="6" fill="#f97316" />
+
+                        <!-- Neural connections -->
+                        <line x1="40" y1="40" x2="64" y2="35" stroke="#4ade80" stroke-width="2" opacity="0.7" />
+                        <line x1="64" y1="35" x2="88" y2="40" stroke="#60a5fa" stroke-width="2" opacity="0.7" />
+                        <line x1="40" y1="40" x2="30" y2="64" stroke="#34d399" stroke-width="2" opacity="0.7" />
+                        <line x1="64" y1="35" x2="64" y2="64" stroke="#f87171" stroke-width="2" opacity="0.7" />
+                        <line x1="88" y1="40" x2="98" y2="64" stroke="#fbbf24" stroke-width="2" opacity="0.7" />
+                        <line x1="30" y1="64" x2="64" y2="64" stroke="#f472b6" stroke-width="2" opacity="0.7" />
+                        <line x1="64" y1="64" x2="98" y2="64" stroke="#a3e635" stroke-width="2" opacity="0.7" />
+                        <line x1="40" y1="88" x2="64" y2="64" stroke="#fb923c" stroke-width="2" opacity="0.7" />
+                        <line x1="64" y1="64" x2="64" y2="93" stroke="#a78bfa" stroke-width="2" opacity="0.7" />
+                        <line x1="64" y1="93" x2="88" y2="88" stroke="#34d399" stroke-width="2" opacity="0.7" />
+
+                        <!-- Central AI text -->
+                        <text x="64" y="75" text-anchor="middle" fill="white" font-family="Arial, sans-serif"
+                            font-size="18" font-weight="bold">AI</text>
+                    </svg>
+                    <h1 style="font-size: 3em; color: #667eea; margin: 0;">
+                        AI Self Check: Solving Real Developer Pain Points
+                    </h1>
                 </div>
-                <div style="margin-top: 40px; padding: 20px; background: rgba(102, 126, 234, 0.1); border-radius: 10px;">
-                    <p style="font-size: 1.3em; color: #4a5568;"><strong>💡 The Big Idea:</strong></p>
-                    <p style="font-size: 1.1em; color: #666; margin-top: 10px;">Instead of fixing code quality issues during expensive PR reviews, we <strong>prevent them during development</strong></p>
-                </div>
-                <div style="margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 1em;">
-                    <div style="background: #fed7d7; padding: 15px; border-radius: 8px;">
-                        <strong>❌ OLD WAY:</strong><br>
-                        45-90 min PR reviews<br>
-                        10x cost to fix bugs in production
-                    </div>
-                    <div style="background: #c6f6d5; padding: 15px; border-radius: 8px;">
-                        <strong>✅ NEW WAY:</strong><br>
-                        10-15 min verifications<br>
-                        Prevent bugs during development
-                    </div>
+                <div class="pain-points">
+                    <h3 style="color: #e53e3e; margin-bottom: 20px;">Current Pain Points:</h3>
+                    <ul style="font-size: 1.1em; line-height: 1.8;">
+                        <li><span class="emoji">❌</span><strong>Manual Code Reviews:</strong> Developers waste <span
+                                class="highlight" style="background: #fed7d7;">20-40% of their time</span> on repetitive
+                            review tasks</li>
+                        <li><span class="emoji">❌</span><strong>Inconsistent Standards:</strong> Each reviewer applies
+                            different criteria → <span class="highlight" style="background: #fed7d7;">3x quality
+                                variation</span></li>
+                        <li><span class="emoji">❌</span><strong>Context Switching:</strong> Breaking flow to write
+                            review prompts → <span class="highlight" style="background: #fed7d7;">23 minutes</span> to
+                            regain focus</li>
+                        <li><span class="emoji">❌</span><strong>Knowledge Gaps:</strong> Junior developers lack review
+                            expertise → <span class="highlight" style="background: #fed7d7;">65% slower</span> PR cycles
+                        </li>
+                        <li><span class="emoji">❌</span><strong>Time Waste:</strong> Repetitive typing of similar review
+                            requests → <span class="highlight" style="background: #fed7d7;">5-10 minutes per
+                                review</span></li>
+                        <li><span class="emoji">❌</span><strong>Knowledge Sharing Bottleneck:</strong> Senior expertise
+                            trapped → <span class="highlight" style="background: #fed7d7;">80% knowledge never
+                                shared</span></li>
+                        <li><span class="emoji">❌</span><strong>AI Cost Blindness:</strong> No visibility into token
+                            usage → <span class="highlight" style="background: #fed7d7;">300% unexpected AI costs</span>
+                        </li>
+                        <li><span class="emoji">❌</span><strong>Reactive Process:</strong> Finding critical bugs during
+                            PR stage → <span class="highlight" style="background: #fed7d7;">10x cost</span> to fix</li>
+                    </ul>
                 </div>
             </div>
         </div>
 
-        <!-- Slide 2: Current Pain Points -->
-        <div class="slide">
-            <h1>💔 The Problem: Developer Productivity Crisis</h1>
-            <div class="pain-points">
-                <h3 style="color: #e53e3e; margin-bottom: 20px;">Current Industry Pain Points:</h3>
-                <ul style="font-size: 1.1em; line-height: 1.8;">
-                    <li><span class="emoji">❌</span><strong>Manual Code Reviews:</strong> Developers waste <span class="highlight" style="background: #fed7d7;">20-40% of their time</span> on repetitive review tasks</li>
-                    <li><span class="emoji">❌</span><strong>Inconsistent Standards:</strong> Each reviewer applies different criteria → <span class="highlight" style="background: #fed7d7;">3x quality variation</span></li>
-                    <li><span class="emoji">❌</span><strong>Context Switching:</strong> Breaking flow to write review prompts → <span class="highlight" style="background: #fed7d7;">23 minutes</span> to regain focus</li>
-                    <li><span class="emoji">❌</span><strong>Knowledge Gaps:</strong> Junior developers lack review expertise → <span class="highlight" style="background: #fed7d7;">65% slower</span> PR cycles</li>
-                    <li><span class="emoji">❌</span><strong>Time Waste:</strong> Repetitive typing of similar review requests → <span class="highlight" style="background: #fed7d7;">5-10 minutes per review</span></li>
-                    <li><span class="emoji">❌</span><strong>Knowledge Sharing Bottleneck:</strong> Senior expertise trapped → <span class="highlight" style="background: #fed7d7;">80% knowledge never shared</span></li>
-                    <li><span class="emoji">❌</span><strong>AI Cost Blindness:</strong> No visibility into token usage → <span class="highlight" style="background: #fed7d7;">300% unexpected AI costs</span></li>
-                    <li><span class="emoji">❌</span><strong>Reactive Process:</strong> Finding critical bugs during PR stage → <span class="highlight" style="background: #fed7d7;">10x cost</span> to fix</li>
-                </ul>
-            </div>
-            
-            <div style="background: #f7fafc; padding: 20px; border-radius: 10px; margin-top: 30px;">
-                <h3 style="color: #2d3748;">📊 Industry Impact Data:</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
-                    <div>• <strong>Average PR Review Time:</strong> 45-90 minutes per pull request</div>
-                    <div>• <strong>Bug Fix Cost Multiplier:</strong> 10x more expensive in production vs development</div>
-                    <div>• <strong>Developer Satisfaction:</strong> 67% report review processes as "frustrating"</div>
-                    <div>• <strong>Knowledge Transfer Rate:</strong> Only 15-20% of senior expertise gets shared</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Slide 3: Team-Centric Development Approach -->
+        <!-- Slide 2: Team-Centric Development Approach -->
         <div class="slide">
             <h1>🎯 Team-Centric Development Approach</h1>
-            
+
             <div class="solution-box" style="background: linear-gradient(135deg, #4299e1, #2b6cb0);">
                 <h2 style="color: white; border: none; margin: 0;">🚀 Proactive Quality from Developer Perspective</h2>
-                <p style="font-size: 1.4em; margin-top: 15px;">Our approach focuses on <strong>empowering developers</strong> to produce high-quality code before it reaches reviewers</p>
+                <p style="font-size: 1.4em; margin-top: 15px;">Our approach focuses on <strong>empowering
+                        developers</strong> to produce high-quality code before it reaches reviewers</p>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0;">
@@ -315,7 +343,8 @@
                         </li>
                         <li style="margin: 12px 0; padding-left: 25px; position: relative;">
                             <span style="position: absolute; left: 0; color: #38b2ac;">✓</span>
-                            <strong>Learning Acceleration:</strong> Junior developers learn best practices through AI feedback
+                            <strong>Learning Acceleration:</strong> Junior developers learn best practices through AI
+                            feedback
                         </li>
                         <li style="margin: 12px 0; padding-left: 25px; position: relative;">
                             <span style="position: absolute; left: 0; color: #38b2ac;">✓</span>
@@ -327,7 +356,8 @@
                         </li>
                         <li style="margin: 12px 0; padding-left: 25px; position: relative;">
                             <span style="position: absolute; left: 0; color: #38b2ac;">✓</span>
-                            <strong>Skill Development:</strong> Continuous improvement through consistent quality standards
+                            <strong>Skill Development:</strong> Continuous improvement through consistent quality
+                            standards
                         </li>
                     </ul>
                 </div>
@@ -342,7 +372,8 @@
                         </li>
                         <li style="margin: 12px 0; padding-left: 25px; position: relative;">
                             <span style="position: absolute; left: 0; color: #dd6b20;">✓</span>
-                            <strong>Reduced Review Time:</strong> Focus on business logic instead of basic quality issues
+                            <strong>Reduced Review Time:</strong> Focus on business logic instead of basic quality
+                            issues
                         </li>
                         <li style="margin: 12px 0; padding-left: 25px; position: relative;">
                             <span style="position: absolute; left: 0; color: #dd6b20;">✓</span>
@@ -354,32 +385,37 @@
                         </li>
                         <li style="margin: 12px 0; padding-left: 25px; position: relative;">
                             <span style="position: absolute; left: 0; color: #dd6b20;">✓</span>
-                            <strong>Strategic Focus:</strong> Spend time on architecture and design instead of syntax issues
+                            <strong>Strategic Focus:</strong> Spend time on architecture and design instead of syntax
+                            issues
                         </li>
                     </ul>
                 </div>
             </div>
         </div>
 
-        <!-- Slide 4: Our Solution -->
+        <!-- Slide 3: Our Solution -->
         <div class="slide">
             <h1>🚀 Our Solution: AI Self Check Extension</h1>
             <div class="solution-box">
                 <h2 style="color: white; border: none; margin: 0;">🔥 Core Value Proposition</h2>
-                <p style="font-size: 1.6em; margin-top: 20px;">Transform every developer into a quality expert with one-click AI-powered code review that learns your team's standards</p>
+                <p style="font-size: 1.6em; margin-top: 20px;">Transform every developer into a quality expert with
+                    one-click AI-powered code review that learns your team's standards</p>
             </div>
-            
-            <div style="background: #e6fffa; padding: 25px; border-radius: 15px; margin: 30px 0; border-left: 5px solid #38b2ac;">
+
+            <div
+                style="background: #e6fffa; padding: 25px; border-radius: 15px; margin: 30px 0; border-left: 5px solid #38b2ac;">
                 <h3 style="color: #2c7a7b; margin-bottom: 15px;">💡 The Big Idea:</h3>
-                <p style="font-size: 1.2em; color: #2d3748;">Instead of fixing code quality issues during expensive PR reviews, we <strong>prevent them during development</strong> with:</p>
+                <p style="font-size: 1.2em; color: #2d3748;">Instead of fixing code quality issues during expensive PR
+                    reviews, we <strong>prevent them during development</strong> with:</p>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
                     <div>⚡ <strong>Instant Self-Review:</strong> Right-click → Get AI feedback in 10 seconds</div>
                     <div>🎯 <strong>Team Standards:</strong> Custom templates that encode senior expertise</div>
                     <div>💰 <strong>Cost Control:</strong> Real-time token tracking with smart auto-approval</div>
-                    <div>🔄 <strong>Proactive Culture:</strong> Shift from "reactive fixing" to "proactive prevention"</div>
+                    <div>🔄 <strong>Proactive Culture:</strong> Shift from "reactive fixing" to "proactive prevention"
+                    </div>
                 </div>
             </div>
-            
+
             <div class="feature-grid" style="margin-top: 40px;">
                 <div class="feature-card">
                     <h3>⚡ Instant Reviews</h3>
@@ -403,14 +439,18 @@
         <!-- Slide 4: Complete Development Workflow -->
         <div class="slide">
             <h1>🔄 Complete Development Workflow</h1>
-            
+
             <div style="background: #f0f4ff; padding: 30px; border-radius: 15px; margin: 20px 0;">
-                <h2 style="color: #5a67d8; text-align: center; margin-bottom: 30px;">From Code to Production: 3-Step Quality Process</h2>
-                
+                <h2 style="color: #5a67d8; text-align: center; margin-bottom: 30px;">From Code to Production: 3-Step
+                    Quality Process</h2>
+
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;">
                     <!-- Step 1: Developer Self-Review -->
-                    <div style="background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #48bb78; text-align: center;">
-                        <div style="background: #48bb78; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 1.5em; font-weight: bold;">1</div>
+                    <div
+                        style="background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #48bb78; text-align: center;">
+                        <div
+                            style="background: #48bb78; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 1.5em; font-weight: bold;">
+                            1</div>
                         <h3 style="color: #2f855a; margin-bottom: 15px;">👨‍💻 Developer Self-Review</h3>
                         <div style="text-align: left; margin-bottom: 15px;">
                             <strong>During Development:</strong>
@@ -424,10 +464,13 @@
                             <strong>Result:</strong> Fix issues while context is hot, submit high-quality PR
                         </div>
                     </div>
-                    
+
                     <!-- Step 2: PR Submission -->
-                    <div style="background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #667eea; text-align: center;">
-                        <div style="background: #667eea; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 1.5em; font-weight: bold;">2</div>
+                    <div
+                        style="background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #667eea; text-align: center;">
+                        <div
+                            style="background: #667eea; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 1.5em; font-weight: bold;">
+                            2</div>
                         <h3 style="color: #5a67d8; margin-bottom: 15px;">📝 PR Submission</h3>
                         <div style="text-align: left; margin-bottom: 15px;">
                             <strong>Self-Reviewed Code:</strong>
@@ -441,10 +484,13 @@
                             <strong>Result:</strong> High-quality PR ready for quick verification
                         </div>
                     </div>
-                    
+
                     <!-- Step 3: Reviewer Verification -->
-                    <div style="background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #ed8936; text-align: center;">
-                        <div style="background: #ed8936; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 1.5em; font-weight: bold;">3</div>
+                    <div
+                        style="background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #ed8936; text-align: center;">
+                        <div
+                            style="background: #ed8936; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 1.5em; font-weight: bold;">
+                            3</div>
                         <h3 style="color: #c05621; margin-bottom: 15px;">👥 Reviewer Verification</h3>
                         <div style="text-align: left; margin-bottom: 15px;">
                             <strong>Quick Verification:</strong>
@@ -461,8 +507,9 @@
                     </div>
                 </div>
             </div>
-            
-            <div style="background: #e6fffa; padding: 20px; border-radius: 10px; margin-top: 30px; border-left: 5px solid #38b2ac;">
+
+            <div
+                style="background: #e6fffa; padding: 20px; border-radius: 10px; margin-top: 30px; border-left: 5px solid #38b2ac;">
                 <h3 style="color: #2c7a7b; margin-bottom: 15px;">🎯 Key Workflow Benefits:</h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div>
@@ -488,7 +535,7 @@
         <!-- Slide 5: Multiple Access Methods -->
         <div class="slide">
             <h1>🛠️ Multiple Access Methods</h1>
-            
+
             <div class="feature-grid">
                 <div class="feature-card">
                     <h3>🖱️ Right-Click Context Menu</h3>
@@ -497,19 +544,20 @@
                         <li>Right-click → "Review File"</li>
                     </ul>
                 </div>
-                
+
                 <div class="feature-card">
                     <h3>💬 Chat Commands</h3>
                     <div class="code-example">
-# Developer self-review <br/>
-@review-changes src/app/component.ts <br/>
-@review-file src/services/auth.service.ts <br/> <br/>
-# Reviewer verification (after self-check) <br/>
-@review-pr https://dev.azure.com/org/repo/pr/123
+                        # Developer self-review <br />
+                        @review-changes src/app/component.ts <br />
+                        @review-file src/services/auth.service.ts <br /> <br />
+                        # Reviewer verification (after self-check) <br />
+                        @review-pr https://dev.azure.com/org/repo/pr/123
                     </div>
-                    <p style="margin-top: 10px; font-size: 0.9em; color: #666;"><strong>Complete workflow:</strong> Self-check during development → Submit PR → Reviewer quick verification</p>
+                    <p style="margin-top: 10px; font-size: 0.9em; color: #666;"><strong>Complete workflow:</strong>
+                        Self-check during development → Submit PR → Reviewer quick verification</p>
                 </div>
-                
+
                 <div class="feature-card">
                     <h3>⌨️ Command Palette</h3>
                     <p><code>Ctrl+Shift+P</code> → Type:</p>
@@ -531,10 +579,10 @@
             </div>
         </div>
 
-        <!-- Slide 5: Smart Template System -->
+        <!-- Slide 6: Smart Template System -->
         <div class="slide">
             <h1>📋 Smart Template System</h1>
-            
+
             <div class="feature-grid">
                 <div class="feature-card">
                     <h3>🚀 Auto-Generation</h3>
@@ -556,15 +604,16 @@
 
             <h2>Template Structure:</h2>
             <div class="code-example">
-📁 your-project/ <br/>
-└── 📁 instructions/ <br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📄 review-changes.md (Developer self-review)<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📄 review-file.md (Developer self-review)<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📄 quick-review-pr.md (Reviewer workflow)<br/>
+                📁 your-project/ <br />
+                └── 📁 instructions/ <br />
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📄 review-changes.md (Developer self-review)<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📄 review-file.md (Developer self-review)<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📄 quick-review-pr.md (Reviewer workflow)<br />
             </div>
 
 
-            <div style="background: #f0fff4; padding: 20px; border-radius: 10px; margin-top: 20px; border-left: 5px solid #48bb78;">
+            <div
+                style="background: #f0fff4; padding: 20px; border-radius: 10px; margin-top: 20px; border-left: 5px solid #48bb78;">
                 <h3>🎯 Key Benefits:</h3>
                 <ul>
                     <li><strong>Knowledge Sharing:</strong> Templates share team expertise automatically</li>
@@ -574,10 +623,10 @@
             </div>
         </div>
 
-        <!-- Slide 6: AI Integration -->
+        <!-- Slide 7: AI Integration -->
         <div class="slide">
             <h1>🤖 Intelligent AI Integration</h1>
-            
+
             <div class="feature-grid">
                 <div class="feature-card">
                     <h3>🔄 Model Flexibility</h3>
@@ -599,10 +648,10 @@
                     <h3>🧠 Smart Scoring</h3>
                     <p>Hidden scoring automatically reduces recommendations when code quality is high</p>
                 </div>
-                <div class="feature-card">
+                <!-- <div class="feature-card">
                     <h3>✅ Intelligent Recommendations</h3>
                     <p>Automatically skips recommendations for high-quality code (score ≥8/10)</p>
-                </div>
+                </div> -->
             </div>
 
             <h2>Model Support & Pricing:</h2>
@@ -640,49 +689,10 @@
             </div>
         </div>
 
-        <!-- Slide 7: Workflow Examples -->
-        <div class="slide">
-            <h1>🎯 Workflow Integration Examples</h1>
-
-            <div class="feature-card" style="margin: 20px 0;">
-                <h3>📄 Scenario 1: Quick File Review</h3>
-                <ol style="font-size: 1.1em; line-height: 1.8;">
-                    <li><strong>Developer</strong> opens TypeScript component file</li>
-                    <li><strong>Right-click</strong> → "AI Self Check: Review File"</li>
-                    <li><strong>Extension</strong> automatically analyzes code quality, security, performance</li>
-                    <li><strong>Smart Scoring</strong> evaluates code quality (hidden scoring system)</li>
-                    <li><strong>Results</strong> displayed with token usage and cost tracking</li>
-                    <li><strong>Auto-Approval</strong> for high-quality code (≥8/10) - "✅ APPROVED - Code quality meets standards, safe to merge!"</li>
-                </ol>
-            </div>
-
-            <div class="feature-card" style="margin: 20px 0;">
-                <h3>🔄 Scenario 2: Git Changes Review</h3>
-                <ol style="font-size: 1.1em; line-height: 1.8;">
-                    <li><strong>Developer</strong> makes code changes and commits</li>
-                    <li><strong>Ctrl+Shift+P</strong> → "AI Self Check: Review Changes"</li>
-                    <li><strong>Extension</strong> analyzes git diff with template-based criteria</li>
-                    <li><strong>Hidden Scoring</strong> evaluates each change (1-5 scale per category)</li>
-                    <li><strong>Cost Tracking</strong> shows token usage: "Input: 1,764 tokens ($0.0053) | Output: 720 tokens ($0.0108)"</li>
-                    <li><strong>Smart Results</strong> provides structured review or auto-approval based on quality score</li>
-                </ol>
-            </div>
-
-            <div class="feature-card" style="margin: 20px 0;">
-                <h3>💬 Scenario 3: Chat-Based Review</h3>
-                <ol style="font-size: 1.1em; line-height: 1.8;">
-                    <li><strong>Developer</strong> opens GitHub Copilot chat</li>
-                    <li><strong>Types:</strong> <code>@review-file src/components/user-profile.tsx</code></li>
-                    <li><strong>Extension</strong> processes file with custom team templates</li>
-                    <li><strong>Chat</strong> streams comprehensive analysis with code examples</li>
-                </ol>
-            </div>
-        </div>
-
         <!-- Slide 8: Performance Comparison -->
         <div class="slide">
             <h1>⚡ Performance & Time Savings</h1>
-            
+
             <div class="table-container">
                 <table>
                     <thead>
@@ -740,128 +750,10 @@
             </div>
         </div>
 
-        <!-- Slide 9: Cost & Quality Intelligence -->
-        <div class="slide">
-            <h1>💰 Advanced Cost & Quality Intelligence</h1>
-
-            <h2>🎯 Real-Time Token Tracking</h2>
-            <div style="background: #2d3748; color: #e2e8f0; padding: 25px; border-radius: 12px; margin: 20px 0; font-family: 'Segoe UI', sans-serif; border-left: 5px solid #4299e1;">
-                <div style="background: rgba(66, 153, 225, 0.1); padding: 15px; border-radius: 8px;">
-                    <h3 style="color: #4299e1; margin-bottom: 15px; font-size: 1.2em;">📊 Token Usage Summary</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                        <div style="background: rgba(72, 187, 120, 0.1); padding: 10px; border-radius: 6px;">
-                            <strong style="color: #48bb78;">Input Tokens:</strong> 1,764<br>
-                            <small style="color: #a0aec0;">Rate: $3.00/1M • Cost: $0.0053</small>
-                        </div>
-                        <div style="background: rgba(237, 137, 54, 0.1); padding: 10px; border-radius: 6px;">
-                            <strong style="color: #ed8936;">Output Tokens:</strong> 720<br>
-                            <small style="color: #a0aec0;">Rate: $15.00/1M • Cost: $0.0108</small>
-                        </div>
-                    </div>
-                    <div style="border-top: 1px solid #4a5568; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong style="color: #f7fafc;">Total Tokens:</strong> <span style="color: #4299e1; font-size: 1.1em;">2,484</span><br>
-                            <strong style="color: #f7fafc;">Model Used:</strong> <span style="color: #9f7aea;">claude-sonnet-4</span>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 1.3em; color: #48bb78; font-weight: bold;">$0.0161</div>
-                            <small style="color: #a0aec0;">Estimated Cost</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <h2>🧠 Hidden Intelligence Scoring System</h2>
-            <div class="score-visual">
-                <div class="score-item">
-                    <h3>Code Quality</h3>
-                    <p>1-5 scale</p>
-                    <small>Structure, readability, maintainability</small>
-                </div>
-                <div class="score-item">
-                    <h3>Security Impact</h3>
-                    <p>1-5 scale</p>
-                    <small>Vulnerabilities, best practices</small>
-                </div>
-                <div class="score-item">
-                    <h3>Performance Impact</h3>
-                    <p>1-5 scale</p>
-                    <small>Efficiency, optimization opportunities</small>
-                </div>
-                <div class="score-item">
-                    <h3>Overall Score</h3>
-                    <p>Average × 2</p>
-                    <small>Final score out of 10</small>
-                </div>
-            </div>
-
-            <h2>⚡ Smart Auto-Approval Logic</h2>
-            <div class="feature-grid">
-                <div class="feature-card" style="background: #d4edda; border-left-color: #28a745;">
-                    <h3>✅ When Overall Score ≥ 8/10:</h3>
-                    <ul>
-                        <li>"APPROVED - Code quality meets standards, safe to merge!"</li>
-                        <li>No recommendations shown (saves time)</li>
-                        <li>Cost savings from shorter responses</li>
-                    </ul>
-                </div>
-                <div class="feature-card" style="background: #fff3cd; border-left-color: #ffc107;">
-                    <h3>📋 When Overall Score < 8/10:</h3>
-                    <ul>
-                        <li>Detailed recommendations provided</li>
-                        <li>Specific fixes and improvements</li>
-                        <li>Before/after merge checklists</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- Slide 10: Key Benefits -->
-        <div class="slide">
-            <h1>💡 Key Benefits Summary</h1>
-
-            <div class="feature-grid">
-                <div class="feature-card" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
-                    <h3>💰 Cost Awareness</h3>
-                    <p>Know exactly what each review costs with real-time token tracking</p>
-                </div>
-                
-                <div class="feature-card" style="background: linear-gradient(135deg, #f093fb, #f5576c); color: white;">
-                    <h3>🎯 Quality-Based Responses</h3>
-                    <p>Don't waste time on good code - auto-approval for high-quality code</p>
-                </div>
-                
-                <div class="feature-card" style="background: linear-gradient(135deg, #4facfe, #00f2fe); color: white;">
-                    <h3>📊 Model Economics</h3>
-                    <p>Compare costs across different AI models and optimize spending</p>
-                </div>
-                
-                <div class="feature-card" style="background: linear-gradient(135deg, #43e97b, #38f9d7); color: white;">
-                    <h3>🧠 Smart Resource Usage</h3>
-                    <p>Auto-approval reduces unnecessary token consumption</p>
-                </div>
-                
-                <div class="feature-card" style="background: linear-gradient(135deg, #fa709a, #fee140); color: white;">
-                    <h3>⚡ Instant Reviews</h3>
-                    <p>Right-click action vs manual typing - 90-95% time savings</p>
-                </div>
-                
-                <div class="feature-card" style="background: linear-gradient(135deg, #a8edea, #fed6e3);">
-                    <h3>🤝 Team Consistency</h3>
-                    <p>Shared templates ensure consistent review standards across team</p>
-                </div>
-            </div>
-
-            <div class="solution-box" style="margin-top: 40px; font-size: 1.3em;">
-                <h2 style="color: white; border: none; margin-bottom: 20px;">🚀 The Bottom Line</h2>
-                <p><strong>Transform code reviews from time-consuming manual work into intelligent, cost-effective, automated quality assurance</strong></p>
-            </div>
-        </div>
-
-        <!-- Slide 11: Complete Transformation Roadmap -->
+        <!-- Slide 9: Complete Transformation Roadmap -->
         <div class="slide">
             <h1>🎯 Complete Transformation Roadmap</h1>
-            
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
                 <div style="background: #fed7d7; padding: 20px; border-radius: 10px; border-left: 5px solid #e53e3e;">
                     <h3 style="color: #c53030;">❌ Current State Problems</h3>
@@ -873,7 +765,7 @@
                         <li>Knowledge trapped in senior developers</li>
                     </ul>
                 </div>
-                
+
                 <div style="background: #c6f6d5; padding: 20px; border-radius: 10px; border-left: 5px solid #38a169;">
                     <h3 style="color: #2f855a;">✅ Transformed End State</h3>
                     <ul style="margin-top: 15px; line-height: 1.8;">
@@ -885,7 +777,7 @@
                     </ul>
                 </div>
             </div>
-            
+
             <div style="margin-top: 40px;">
                 <h2 style="color: #4a5568;">🔄 4-Phase Implementation (8 weeks)</h2>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px;">
@@ -911,51 +803,64 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="solution-box" style="margin-top: 40px;">
                 <h2 style="color: white; border: none; margin-bottom: 15px;">🚀 End State Vision</h2>
-                <p style="font-size: 1.4em;">"Every developer becomes a quality expert, every PR is pre-validated, every review is cost-optimized, and every bug is caught early."</p>
+                <p style="font-size: 1.4em;">"Every developer becomes a quality expert, every PR is pre-validated, every
+                    review is cost-optimized, and every bug is caught early."</p>
                 <div style="margin-top: 20px; background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px;">
-                    <strong>6-Month Success Targets:</strong> 8-10/10 code quality • 12min avg reviews • 70% fewer bugs • $300K-1M ROI • 89% developer satisfaction
+                    <strong>6-Month Success Targets:</strong> 8-10/10 code quality • 12min avg reviews • 70% fewer bugs
+                    • $300K-1M ROI • 89% developer satisfaction
                 </div>
             </div>
         </div>
 
-        <!-- Slide 12: Ready to Transform & Quick Start -->
+        <!-- Slide 10: Ready to Transform & Quick Start -->
         <div class="slide">
             <h1>🎪 Ready to Transform Your Team?</h1>
-            
-            <div style="background: #e6fffa; padding: 30px; border-radius: 15px; margin: 20px 0; border-left: 5px solid #38b2ac;">
+
+            <div
+                style="background: #e6fffa; padding: 30px; border-radius: 15px; margin: 20px 0; border-left: 5px solid #38b2ac;">
                 <h2 style="color: #2c7a7b; margin-bottom: 20px;">🚀 Quick Start (5 minutes)</h2>
                 <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px;">
                     <div style="text-align: center;">
-                        <div style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">1</div>
+                        <div
+                            style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">
+                            1</div>
                         <strong>Install</strong><br>
                         <small>VS Code marketplace</small>
                     </div>
                     <div style="text-align: center;">
-                        <div style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">2</div>
+                        <div
+                            style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">
+                            2</div>
                         <strong>Configure</strong><br>
                         <small>Auto-generates templates</small>
                     </div>
                     <div style="text-align: center;">
-                        <div style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">3</div>
+                        <div
+                            style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">
+                            3</div>
                         <strong>Use</strong><br>
                         <small>Right-click → Review</small>
                     </div>
                     <div style="text-align: center;">
-                        <div style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">4</div>
+                        <div
+                            style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">
+                            4</div>
                         <strong>Scale</strong><br>
                         <small>Share team templates</small>
                     </div>
                     <div style="text-align: center;">
-                        <div style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">5</div>
+                        <div
+                            style="background: #38b2ac; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold;">
+                            5</div>
                         <strong>Measure</strong><br>
                         <small>Track ROI & quality</small>
                     </div>
                 </div>
             </div>
-            
+
             <div style="background: #f7fafc; padding: 25px; border-radius: 10px; margin: 20px 0;">
                 <h3 style="color: #2d3748; margin-bottom: 15px;">🎯 Perfect For:</h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -967,17 +872,17 @@
                     <div>• Teams wanting faster PR cycles</div>
                 </div>
             </div>
-            
+
             <div class="solution-box" style="margin-top: 30px; font-size: 1.2em;">
                 <h2 style="color: white; border: none;">✨ Transform Your Development Workflow Today</h2>
                 <p style="margin-top: 15px;">Your future self (and your team) will thank you!</p>
             </div>
         </div>
 
-        <!-- Slide 12: Proven Impact & ROI -->
+        <!-- Slide 11: Proven Impact & ROI -->
         <div class="slide">
             <h1>📊 Proven Impact Metrics & ROI</h1>
-            
+
             <div class="table-container">
                 <table>
                     <thead>
@@ -1028,7 +933,7 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <div class="solution-box" style="margin-top: 30px;">
                 <h2 style="color: white; border: none; margin-bottom: 15px;">💰 ROI Calculation (10-person team)</h2>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left;">
@@ -1052,11 +957,11 @@
             </div>
         </div>
 
-        <!-- Slide 13: Thank You -->
+        <!-- Slide 12: Thank You -->
         <div class="slide">
             <div style="text-align: center; padding-top: 150px;">
                 <h1 style="font-size: 4em; color: #667eea; margin-bottom: 50px;">🙏 Thank You!</h1>
-                
+
                 <div class="solution-box" style="font-size: 1.3em; margin: 50px auto; max-width: 600px;">
                     <h2 style="color: white; border: none;">Questions & Discussion</h2>
                     <p style="margin-top: 20px;">Ready to revolutionize your code review process?</p>
@@ -1087,16 +992,16 @@
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
         const totalSlides = slides.length;
-        
+
         document.getElementById('total-slides').textContent = totalSlides;
 
         function showSlide(n) {
             slides[currentSlide].classList.remove('active');
             currentSlide = (n + totalSlides) % totalSlides;
             slides[currentSlide].classList.add('active');
-            
+
             document.getElementById('current-slide').textContent = currentSlide + 1;
-            
+
             // Update navigation buttons
             document.getElementById('prevBtn').disabled = currentSlide === 0;
             document.getElementById('nextBtn').disabled = currentSlide === totalSlides - 1;
@@ -1111,7 +1016,7 @@
         }
 
         // Keyboard navigation
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'ArrowRight' || e.key === ' ') {
                 e.preventDefault();
                 changeSlide(1);
@@ -1125,4 +1030,5 @@
         showSlide(0);
     </script>
 </body>
+
 </html>

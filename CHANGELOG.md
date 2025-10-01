@@ -2,6 +2,16 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.17] - 2025-10-01
+
+### 📊 Template Updates
+- Updated 3 core review templates with enhanced review criteria and improved formatting
+- Refined template structure for better AI model compatibility
+- Enhanced code analysis patterns across all template types
+
+### 🔧 Improvements
+- Updated extension version to 1.0.17
+
 ## [1.0.16] - 2025-09-30
 
 ### 🌐 Localization

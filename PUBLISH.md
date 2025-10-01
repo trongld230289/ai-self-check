@@ -35,7 +35,7 @@ Enter your PAT when prompted.
 
 ## 📋 Pre-publish Checklist
 
-- ✅ Version updated to 1.0.16
+- ✅ Version updated to 1.0.17
 - ✅ README.md created with comprehensive documentation
 - ✅ Chat participants configured with icons
 - ✅ Package.json properly configured
@@ -55,7 +55,7 @@ vsce package
 vsce publish
 
 # Or package and publish in one step
-vsce publish --packagePath ./ai-self-check-1.0.16.vsix
+vsce publish --packagePath ./ai-self-check-1.0.17.vsix
 ```
 
 ## 📊 Post-publish
@@ -68,13 +68,13 @@ After publishing, your extension will be available at:
 
 For future updates:
 ```bash
-# Patch version (1.0.16 → 1.0.17)
+# Patch version (1.0.17 → 1.0.18)
 vsce publish patch
 
-# Minor version (1.0.16 → 1.1.0)
+# Minor version (1.0.17 → 1.1.0)
 vsce publish minor
 
-# Major version (1.0.16 → 2.0.0)  
+# Major version (1.0.17 → 2.0.0)  
 vsce publish major
 ```
 

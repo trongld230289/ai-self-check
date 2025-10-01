@@ -1,12 +1,20 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.16-blue.svg)](https://github.com/trongld230### v1.0.16 (Current)
+[![Version](https://img.shields.io/badge/version-1.0.17-blue.svg)](https://github.com/trongld230289/ai-self-check)
+
+## 📋 Latest Updates
+
+### v1.0.17 (Current)
+- ✨ **New Features**: Updated extension version to 1.0.17 with latest improvements
+- 🔧 **Version Update**: Bumped version to 1.0.17
+
+### v1.0.16
 - 📊 **Improved Review Templates**: Enhanced consistency across all review templates with strict mode and line number traceability
 - 🌐 **Localization**: Updated all Vietnamese text to English for better international accessibility
 - 🔧 **Bug Fixes**: Fixed model detection issues in PR review functionality
 
 ### v1.0.15
-- 🔄 **Enhanced PR Review Control**: Added global configuration variable `isShowSummaryOfChanges` for controlling PR review display sections9/ai-self-check)
+- 🔄 **Enhanced PR Review Control**: Added global configuration variable `isShowSummaryOfChanges` for controlling PR review display sections
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
