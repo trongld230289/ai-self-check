@@ -1,6 +1,13 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.14-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.16-blue.svg)](https://github.com/trongld230### v1.0.16 (Current)
+- 📊 **Improved Review Templates**: Enhanced consistency across all review templates with strict mode and line number traceability
+- 🌐 **Localization**: Updated all Vietnamese text to English for better international accessibility
+- 🔧 **Bug Fixes**: Fixed model detection issues in PR review functionality
+
+### v1.0.15
+- 🔄 **Enhanced PR Review Control**: Added global configuration variable `isShowSummaryOfChanges` for controlling PR review display sections9/ai-self-check)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
 
@@ -135,7 +142,13 @@ When you run the extension for the first time, it automatically generates defaul
 
 ## 🔄 Version History
 
-### v1.0.14 (Current)
+### v1.0.15
+- 🚀 **Enhanced PR Review Control**: Added global configuration variable `isShowSummaryOfChanges` for controlling PR review display sections
+- 🎯 **Flexible Review Output**: Enhanced control over Summary of Changes, Final Diff, and Files Changed Summary sections
+- 📊 **Customizable Analysis**: Improved PR review flexibility with toggle controls for detailed diff information
+- 🔧 **Better User Control**: Fine-tuned PR review output display with conditional section rendering
+
+### v1.0.14
 - 🚀 **Enhanced Azure DevOps PR Review**: Smart diff parsing that filters formatting/whitespace noise
 - 🎨 **Theme-Appropriate Icons**: PR review participant now has light/dark theme icons
 - 📊 **Real Change Statistics**: Accurate line counting with semantic analysis (shows real vs total changes)

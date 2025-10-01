@@ -2,6 +2,46 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.16] - 2025-09-30
+
+### 🌐 Localization
+- Updated all Vietnamese text to English throughout the extension for better international accessibility
+- Improved user interface consistency with English-only messaging
+
+### 📊 Enhanced Templates  
+- Updated review templates with consistent strict mode approach
+- Added line number traceability in code review templates for easier debugging
+- Enhanced diff display with syntax highlighting and better formatting
+
+### 🔧 Bug Fixes
+- Fixed model detection issues in PR review functionality (@review-pr command)
+- Corrected parameter passing in getUnifiedModel function calls
+- Improved error handling and user feedback consistency
+
+### 🧹 Code Cleanup
+- Removed deprecated review-common.md template and related logic
+- Simplified template generation process for better maintainability
+- Enhanced template consistency across all review types
+
+## [1.0.15] - 2025-09-26
+
+### 🚀 Added
+- Enhanced control over Summary of Changes, Final Diff, and Files Changed Summary sections
+- Improved PR review flexibility with toggle controls for detailed diff information
+
+### 🔧 Fixed
+- Fine-tuned PR review output display with conditional section rendering
+- Better control over diff content visibility in Azure DevOps PR reviews
+
+### 📈 Improved
+- PR review template customization with global toggle variables
+- User control over detailed diff section display
+- Streamlined review output for focused analysis
+
+### 🎨 Changed
+- Updated review-pr.js with configurable section display controls
+- Enhanced PR review workflow with selective content visibility
+
 ## [1.0.14] - 2025-09-25
 
 ### 🚀 Added

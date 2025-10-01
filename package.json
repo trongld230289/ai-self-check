@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.14",
+  "version": "1.0.16",
   "publisher": "trongld232",
   "icon": "icons/extension-icon.png",
   "author": {
@@ -92,12 +92,12 @@
         {
           "command": "aiSelfCheck.reviewFile",
           "group": "navigation@1",
-          "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
+          "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|html|htm|css|scss|less|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
         },
         {
           "command": "aiSelfCheck.reviewChanges",
           "group": "navigation@2",
-          "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
+          "when": "resourceExtname =~ /\\.(ts|js|tsx|jsx|html|htm|css|scss|less|py|java|cs|cpp|c|php|rb|go|rs|kt|swift)$/"
         }
       ]
     },
