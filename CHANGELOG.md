@@ -2,6 +2,52 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.19] - 2025-10-08
+
+### 🔧 AI Provider Enhancement
+- **NEW**: STU Platform support (`aiportalapi.stu-platform.live`) as separate provider
+- **ADDED**: Intelligent API parameter normalization library
+- **IMPROVED**: Better handling of `max_tokens` vs `max_completion_tokens` across providers
+- **ENHANCED**: GPT-5 support with automatic temperature removal for incompatible models
+- **FIXED**: Azure OpenAI parameter compatibility issues
+- **OPTIMIZED**: Smart provider detection based on API host and model name
+
+### 🚀 Multi-Provider Support Updates
+- **OpenAI**: `max_tokens` parameter support
+- **Azure**: `max_completion_tokens` preference for all models
+- **STU Platform**: Custom parameter handling with GPT-5 temperature fix
+- **Anthropic**: Remove unsupported `response_format` parameter
+- **Google**: Convert to `max_output_tokens`
+- **Cohere**: Convert to `max_generation_length`
+- **HuggingFace**: Convert to `max_new_tokens`
+- **Ollama**: Convert to `num_predict` and remove OpenAI-specific params
+
+### 📚 Parameter Normalization Library
+- **Smart Detection**: Auto-detect provider from API host or model name
+- **Flexible Conversion**: Automatically convert parameters based on provider requirements
+- **Future-Proof**: Support for upcoming models like GPT-5, GPT-6
+- **Error Prevention**: Avoid API errors from unsupported parameters
+
+## [1.0.18] - 2025-10-03
+
+### 🤖 AI Configuration Enhancement
+- **NEW**: Unified AI API configuration with flexible provider support
+- **ADDED**: `aiSelfCheck.ai.apiKey` - Universal AI API key setting
+- **ADDED**: `aiSelfCheck.ai.apiHost` - Configurable AI API host (OpenAI, Claude, custom)
+- **ADDED**: `aiSelfCheck.ai.model` - AI model selection (GPT-4, GPT-5, Claude-3, custom)
+- **IMPROVED**: @scan-app command now supports multiple AI providers
+- **ENHANCED**: Better error handling and logging for AI API calls
+
+### 🚀 Multi-Provider AI Support
+- **OpenAI**: GPT-4, GPT-4-turbo, GPT-5 support
+- **Anthropic**: Claude-3-sonnet, Claude-3-opus support  
+- **Custom**: Your own AI service endpoint support
+- **Flexible**: Easy switching between different AI providers
+
+### 🔧 Breaking Changes
+- **DEPRECATED**: `aiSelfCheck.openai.apiKey` (use `aiSelfCheck.ai.apiKey` instead)
+- **MIGRATION**: Old OpenAI settings still work but new unified settings recommended
+
 ## [1.0.17] - 2025-10-01
 
 ### 📊 Template Updates

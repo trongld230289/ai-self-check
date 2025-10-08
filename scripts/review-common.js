@@ -46,11 +46,10 @@ function normalizeModelFamily(modelFamily) {
     
     // GPT models
     if (family.includes('gpt')) {
-        if (family.includes('5') && family.includes('mini')) return 'gpt-5-mini';
-        if (family.includes('5')) return 'gpt-5';
-        if (family.includes('4.1') || family.includes('4-1')) return 'gpt-4.1';
         if (family.includes('4o') && family.includes('mini')) return 'gpt-4o-mini';
         if (family.includes('4o')) return 'gpt-4o';
+        if (family.includes('4') && family.includes('turbo')) return 'gpt-4-turbo';
+        if (family.includes('4')) return 'gpt-4';
         return 'gpt-4o'; // Default GPT
     }
     
@@ -86,40 +85,56 @@ function normalizeModelFamily(modelFamily) {
  * @returns {object} - Cost breakdown
  */
 function estimateCost(inputTokens, outputTokens, modelFamily) {
-    // Pricing per 1M tokens (last updated: 2025-09-24)
+    // Pricing per 1M tokens (last updated: 2025-10-07 - GitHub Copilot rates)
     const pricing = {
-        // Claude Models
+        // Claude Models (Anthropic via Copilot)
         'claude-3-5-sonnet': { input: 3.0, output: 15.0 },
         'claude-sonnet-3.5': { input: 3.0, output: 15.0 },
         'claude-3-7-sonnet': { input: 3.0, output: 15.0 },
         'claude-sonnet-3.7': { input: 3.0, output: 15.0 },
-        'claude-3-7-thinking': { input: 3.75, output: 18.75 }, // 1.25x multiplier
+        'claude-3-7-thinking': { input: 3.75, output: 18.75 }, // Extended thinking
         'claude-sonnet-3.7-thinking': { input: 3.75, output: 18.75 },
         'claude-4': { input: 3.0, output: 15.0 },
         'claude-sonnet-4': { input: 3.0, output: 15.0 },
+        'claude-4.5': { input: 3.0, output: 15.0 },
+        'claude-sonnet-4.5': { input: 3.0, output: 15.0 },
+        'claude-3-opus': { input: 15.0, output: 75.0 },
+        'claude-opus': { input: 15.0, output: 75.0 },
+        'claude-3-haiku': { input: 0.25, output: 1.25 },
+        'claude-haiku': { input: 0.25, output: 1.25 },
         
-        // GPT Models  
+        // GPT Models (OpenAI via Copilot) 
         'gpt-4.1': { input: 2.5, output: 10.0 },
-        'gpt-4-1': { input: 2.5, output: 10.0 },
         'gpt-4o': { input: 2.5, output: 10.0 },
         'gpt-4o-mini': { input: 0.15, output: 0.6 },
-        'gpt-5': { input: 5.0, output: 15.0 }, // Estimated premium pricing
-        'gpt-5-mini': { input: 0.50, output: 1.5 }, // Estimated
+        'gpt-4-turbo': { input: 10.0, output: 30.0 },
+        'gpt-4': { input: 2.5, output: 10.0 }, // Fixed: was showing 30/60, should be 2.5/10
+        'o1': { input: 15.0, output: 60.0 },
+        'o1-mini': { input: 3.0, output: 12.0 },
+        'o1-preview': { input: 15.0, output: 60.0 },
         
-        // Gemini Models
-        'gemini-2.0-flash': { input: 0.075, output: 0.3 }, // 0.25x multiplier
+        // Gemini Models (Google via Copilot)
+        'gemini-2.0-flash': { input: 0.075, output: 0.3 },
         'gemini-2-0-flash': { input: 0.075, output: 0.3 },
+        'gemini-2.0-flash-exp': { input: 0.075, output: 0.3 },
         'gemini-2.5-pro': { input: 1.25, output: 5.0 },
         'gemini-2-5-pro': { input: 1.25, output: 5.0 },
+        'gemini-2.5-flash': { input: 0.075, output: 0.3 },
+        'gemini-2-5-flash': { input: 0.075, output: 0.3 },
         'gemini': { input: 1.25, output: 5.0 }, // Default gemini
         
-        // O-series Models
-        'o3-mini': { input: 0.25, output: 1.0 }, // 0.33x estimated
-        'o4-mini': { input: 0.25, output: 1.0 }, // 0.33x estimated
-        'o4-mini-preview': { input: 0.25, output: 1.0 },
+        // O-series Models (OpenAI reasoning)
+        'o3-mini': { input: 1.1, output: 4.4 },
+        'o4-mini': { input: 1.1, output: 4.4 },
+        'o4-mini-preview': { input: 1.1, output: 4.4 },
         
-        // Grok Models
-        'grok-code-fast-1': { input: 1.0, output: 3.0 }, // Estimated
+        // DeepSeek Models
+        'deepseek-r1': { input: 0.55, output: 2.19 },
+        'deepseek-r1-distill-qwen': { input: 0.14, output: 0.55 },
+        'deepseek-r1-distill-llama': { input: 0.14, output: 0.55 },
+        
+        // Grok Models (xAI)
+        'grok-code-fast-1': { input: 1.0, output: 3.0 },
         'grok-code-fast-1-preview': { input: 1.0, output: 3.0 },
         
         // Unknown/Fallback
@@ -177,24 +192,24 @@ async function getFallbackModel(currentModel, stream, attemptNumber = 1) {
             throw new Error('No alternative models available for fallback');
         }
         
-        // Fallback priority order (consistent across all functions):
-        // 1. Claude 4 (Claude Sonnet 4)
-        // 2. GPT-4.1 
+        // Fallback priority order (respecting user choice):
+        // 1. Available Claude models
+        // 2. Available GPT models
         // 3. First available model
         
         let fallbackModel = null;
         
-        // Priority 1: Claude 4 (Claude Sonnet 4)
+        // Priority 1: Claude models (if available)
         fallbackModel = availableModels.find(m => 
             m.family.toLowerCase().includes('claude') && 
             (m.family.includes('4') || m.family.toLowerCase().includes('sonnet'))
         );
         
-        // Priority 2: GPT-4.1 
+        // Priority 2: GPT models (if no Claude available)
         if (!fallbackModel) {
             fallbackModel = availableModels.find(m => 
                 m.family.toLowerCase().includes('gpt') && 
-                (m.family.includes('4.1') || m.family.includes('4'))
+                (m.family.includes('4o') || m.family.includes('4'))
             );
         }
         
@@ -300,23 +315,8 @@ async function executeAIReview(userPrompt, model, stream, reviewType = 'Analysis
         // const cleanedOutput = stripInternalBlocks(outputText);
         // console.log(`🧹 Cleaned output: ${outputText.length} chars -> ${cleanedOutput.length} chars`);
         
-        // Calculate output tokens and total cost
-        const outputTokens = estimateTokenCount(outputText);
-        const finalCost = estimateCost(inputTokens, outputTokens, model.family);
-        
         // Show completion with token statistics
-        const completionStatus = attemptCount === 0 ? 'original model' : `fallback model (${model.family})`;
-        stream.markdown(`\n\n---\n\n`);
-        stream.markdown(`📊 **Token Usage Summary:**\n`);
-        stream.markdown(`- **Input tokens**: ${inputTokens.toLocaleString()} ($${finalCost.pricing.input.toFixed(2)}/1M)\n`);
-        stream.markdown(`- **Output tokens**: ${outputTokens.toLocaleString()} ($${finalCost.pricing.output.toFixed(2)}/1M tokens)\n`);
-        stream.markdown(`- **Total tokens**: ${(inputTokens + outputTokens).toLocaleString()}\n`);
-        stream.markdown(`- **Estimated cost**: $${finalCost.totalCost.toFixed(4)} (Input: $${finalCost.inputCost.toFixed(4)} | Output: $${finalCost.outputCost.toFixed(4)})\n`);
-        stream.markdown(`- **Model used**: ${model.family}\n\n`);
-        stream.markdown(`✅ **${reviewType} Analysis complete** - successfully used ${completionStatus}\n\n`);
-        
-        console.log(`✅ ${reviewType} review completed successfully with model:`, model.family);
-        console.log(`📊 Token usage - Input: ${inputTokens}, Output: ${outputTokens}, Cost: $${finalCost.totalCost.toFixed(4)}`);
+        showTokenStatistics(stream, userPrompt, outputText, model, reviewType, attemptCount);
         
         return true; // Success
         
@@ -433,16 +433,32 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
     let models = [];
     
     console.log('=== getUnifiedModel DEBUG START ===');
-    console.log('getUnifiedModel - request object:', request);
-    console.log('getUnifiedModel - request.model:', request?.model);
-    console.log('getUnifiedModel - request.model?.family:', request?.model?.family);
-    console.log('getUnifiedModel - request.model?.id:', request?.model?.id);
+    console.log('🔍 Full request object:', JSON.stringify(request, null, 2));
+    console.log('🔍 Request keys:', request ? Object.keys(request) : 'null');
+    console.log('🔍 Request.model:', request?.model);
+    console.log('🔍 Request.model?.family:', request?.model?.family);
+    console.log('🔍 Request.model?.id:', request?.model?.id);
+    
+    // Check ALL possible model locations in request
+    if (request) {
+        console.log('🔍 Checking all request properties for model...');
+        for (const key in request) {
+            console.log(`   - request.${key}:`, typeof request[key] === 'object' ? JSON.stringify(request[key]).substring(0, 200) : request[key]);
+        }
+    }
     
     // PRIORITY 1: Check request.model first (this is where VS Code puts the selected model!)
     if (request && request.model) {
         console.log('✅ Found model in request.model:', request.model);
         console.log('✅ Model family:', request.model.family);
         console.log('✅ Model id:', request.model.id);
+        console.log('🎯 Using user-selected model from VS Code chat');
+        
+        // Add warning if user selected GPT but wanted Claude
+        if (request.model.family && request.model.family.toLowerCase().includes('gpt')) {
+            console.log('ℹ️ NOTE: User selected GPT model. To use Claude, please select a Claude model in VS Code chat dropdown.');
+        }
+        
         return request.model;
     } else {
         console.log('❌ No model found in request.model');
@@ -501,15 +517,14 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
         console.log('📋 All available models:', models.map(m => `${m.family || m.id} (${m.vendor || 'Unknown'})`));
         
         if (models.length > 0) {
-            // FALLBACK 1: Smart model selection based on quality preference
+            // FALLBACK 1: Smart model selection based on quality preference (respecting user choice)
             const modelPreferences = [
-                // Tier 1: Latest Claude models (best for code review)
-                'claude-sonnet-4', 'claude-4', 'claude-3.7-sonnet', 'claude-3.5-sonnet',
-                // Tier 2: Latest GPT models  
-                'gpt-5', 'gpt-4.1', 'gpt-4o', 'gpt-4-turbo', 'gpt-4',
-                // Tier 3: Other advanced models
-                'o4-mini', 'o3-mini', 'gemini-2.5-pro', 'gemini-2.0-flash', 
-                // Tier 4: Fallback options
+                // Tier 1: High-quality models (Claude and GPT)
+                'claude-sonnet-4', 'claude-4', 'claude-3.5-sonnet', 'claude-3.7-sonnet',
+                'gpt-4o', 'gpt-4-turbo', 'gpt-4',
+                // Tier 2: Other advanced models
+                'gpt-4o-mini', 'o4-mini', 'o3-mini', 'gemini-2.5-pro', 'gemini-2.0-flash', 
+                // Tier 3: Fallback options
                 'gpt-3.5-turbo', 'grok-code'
             ];
 
@@ -674,6 +689,125 @@ async function showAvailableModels() {
 }
 
 /**
+ * Show token usage statistics and completion status
+ * @param {object} stream - Chat stream for output
+ * @param {string} inputText - Input text sent to AI
+ * @param {string} outputText - Output text received from AI
+ * @param {object} model - AI model used
+ * @param {string} reviewType - Type of analysis
+ * @param {number} attemptCount - Current attempt number
+ */
+function showTokenStatistics(stream, inputText, outputText, model, reviewType, attemptCount) {
+    // Calculate input and output tokens
+    const inputTokens = estimateTokenCount(inputText);
+    const outputTokens = estimateTokenCount(outputText);
+    const finalCost = estimateCost(inputTokens, outputTokens, model.family);
+    
+    // Determine completion status
+    const completionStatus = attemptCount === 0 ? 'original model' : `fallback model (${model.family})`;
+    
+    // Display token statistics
+    stream.markdown(`\n\n---\n\n`);
+    stream.markdown(`📊 **Token Usage Summary:**\n`);
+    stream.markdown(`- **Input tokens**: ${inputTokens.toLocaleString()} ($${finalCost.pricing.input.toFixed(2)}/1M)\n`);
+    stream.markdown(`- **Output tokens**: ${outputTokens.toLocaleString()} ($${finalCost.pricing.output.toFixed(2)}/1M tokens)\n`);
+    stream.markdown(`- **Total tokens**: ${(inputTokens + outputTokens).toLocaleString()}\n`);
+    stream.markdown(`- **Estimated cost**: $${finalCost.totalCost.toFixed(4)} (Input: $${finalCost.inputCost.toFixed(4)} | Output: $${finalCost.outputCost.toFixed(4)})\n`);
+    stream.markdown(`- **Model used**: ${model.family}\n\n`);
+    stream.markdown(`✅ **${reviewType} Analysis complete** - successfully used ${completionStatus}\n\n`);
+    
+    // Console logging
+    console.log(`✅ ${reviewType} review completed successfully with model:`, model.family);
+    console.log(`📊 Token usage - Input: ${inputTokens}, Output: ${outputTokens}, Cost: $${finalCost.totalCost.toFixed(4)}`);
+}
+
+/**
+ * Execute API call for scan-app pattern analysis
+ * @param {string} prompt - The prompt to send to the AI model
+ * @param {object} stream - Chat stream for output
+ * @param {string} analysisType - Type of analysis (e.g. 'API Pattern Analysis')
+ * @returns {Promise<object|null>} - Parsed AI response or null if failed
+ */
+async function executeApiAnalysisCall(prompt, stream, analysisType = 'API Pattern Analysis') {
+    try {
+        // Get AI model
+        const model = await getUnifiedModel(stream);
+        if (!model) {
+            stream.markdown('❌ **No AI model available** - Please select a model in VS Code\n\n');
+            return null;
+        }
+        
+        console.log(`📤 Starting ${analysisType} with model:`, model.family);
+        
+        // Show analysis start
+        stream.markdown(`🤖 **${analysisType}** (using ${model.family}):\n\n`);
+        stream.markdown('🔄 **Processing with AI...**\n\n');
+        
+        // Execute AI call
+        const messages = [vscode.LanguageModelChatMessage.User(prompt)];
+        const chatResponse = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        
+        // Collect output
+        let outputText = '';
+        for await (const fragment of chatResponse.text) {
+            outputText += fragment;
+        }
+        
+        // Show token statistics
+        showTokenStatistics(stream, prompt, outputText, model, analysisType, 0);
+        
+        // Try to parse JSON response
+        try {
+            const parsedResponse = JSON.parse(outputText);
+            console.log(`✅ ${analysisType} JSON parsed successfully`);
+            return parsedResponse;
+        } catch (parseError) {
+            console.log(`⚠️ ${analysisType} response is not JSON, returning raw text`);
+            return { rawResponse: outputText };
+        }
+        
+    } catch (error) {
+        console.error(`❌ ${analysisType} failed:`, error);
+        stream.markdown(`❌ **${analysisType} failed:** ${error.message}\n\n`);
+        
+        // Try fallback if quota/model error
+        if (error.message && (
+            error.message.includes('quota') ||
+            error.message.includes('rate limit') ||
+            error.message.includes('not supported')
+        )) {
+            stream.markdown(`🔄 **Attempting fallback model...**\n\n`);
+            try {
+                const fallbackModel = await getFallbackModel(model, stream, 1);
+                const messages = [vscode.LanguageModelChatMessage.User(prompt)];
+                const chatResponse = await fallbackModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+                
+                let outputText = '';
+                for await (const fragment of chatResponse.text) {
+                    outputText += fragment;
+                }
+                
+                showTokenStatistics(stream, prompt, outputText, fallbackModel, analysisType, 1);
+                
+                try {
+                    const parsedResponse = JSON.parse(outputText);
+                    console.log(`✅ ${analysisType} fallback JSON parsed successfully`);
+                    return parsedResponse;
+                } catch (parseError) {
+                    return { rawResponse: outputText };
+                }
+                
+            } catch (fallbackError) {
+                stream.markdown(`❌ **Fallback also failed:** ${fallbackError.message}\n\n`);
+                return null;
+            }
+        }
+        
+        return null;
+    }
+}
+
+/**
  * Get programming language identifier from file extension
  * @param {string} ext - File extension (with or without dot)
  * @returns {string} - Language identifier for syntax highlighting
@@ -707,5 +841,7 @@ module.exports = {
     getChecklistStatusIcon,
     getAvailableModels,
     showAvailableModels,
-    getLanguageFromExtension
+    getLanguageFromExtension,
+    showTokenStatistics,
+    executeApiAnalysisCall
 };

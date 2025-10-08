@@ -37,26 +37,40 @@ async function handleReviewPr(request, context, stream, token) {
     try {
         const userMessage = request.prompt;
 
-        // Parse Azure DevOps URL or PR ID
+        // Parse repo URL and detect type
         let prId = null;
+        let repoType = null;
         let organization = null;
         let project = null;
         let repository = null;
+        let owner = null;
+        let repo = null;
+
+        // GitHub URL pattern: https://github.com/{owner}/{repo}/pull/{id}
+        const githubUrlPattern = /https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/i;
+        const githubMatch = userMessage.match(githubUrlPattern);
 
         // Azure DevOps URL pattern: https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{id}
         const azureUrlPattern = /https:\/\/dev\.azure\.com\/([^\/]+)\/([^\/]+)\/_git\/([^\/]+)\/pullrequest\/(\d+)/i;
         const azureMatch = userMessage.match(azureUrlPattern);
 
-        if (azureMatch) {
+        if (githubMatch) {
+            repoType = 'github';
+            owner = githubMatch[1];
+            repo = githubMatch[2];
+            prId = githubMatch[3];
+        } else if (azureMatch) {
+            repoType = 'azure';
             organization = azureMatch[1];
             project = azureMatch[2];
             repository = azureMatch[3];
             prId = azureMatch[4];
         } else {
-            // Fallback to simple PR ID pattern
+            // Fallback to simple PR ID pattern (Azure DevOps default)
             const prPattern = /(?:pullrequest(?:s)?\/(\d+)|pr[#\s]?(\d+)|id[:\s]?(\d+))/i;
             const match = userMessage.match(prPattern);
             if (match) {
+                repoType = 'azure';
                 prId = match[1] || match[2] || match[3];
             }
         }
@@ -73,31 +87,47 @@ async function handleReviewPr(request, context, stream, token) {
         }
 
         if (!prId) {
-            stream.markdown('🤖 **Azure DevOps PR Reviewer**\n\n');
-            stream.markdown('I need PR information to review. Please provide:\n\n');
-            stream.markdown('• **PR URL**: `https://dev.azure.com/org/project/_git/repo/pullrequest/123`\n');
-            stream.markdown('• **PR ID**: Example: `PR #123` or `ID: 123`\n\n');
-            stream.markdown('**Usage Examples:**\n');
+            stream.markdown('🤖 **PR Reviewer (GitHub & Azure DevOps)**\n\n');
+            stream.markdown('I can review PRs from both GitHub and Azure DevOps! Please provide:\n\n');
+            stream.markdown('**GitHub:**\n');
+            stream.markdown('• `https://github.com/owner/repo/pull/123`\n\n');
+            stream.markdown('**Azure DevOps:**\n');
+            stream.markdown('• `https://dev.azure.com/org/project/_git/repo/pullrequest/123`\n');
+            stream.markdown('• `PR #123` or `ID: 123` (defaults to configured Azure DevOps)\n\n');
+            stream.markdown('**Examples:**\n');
             stream.markdown('```\n');
+            stream.markdown('https://github.com/microsoft/vscode/pull/12345\n');
             stream.markdown('https://dev.azure.com/BusinessWebUS/Shippo/_git/Shippo-Web/pullrequest/1396\n');
             stream.markdown('Review PR #123\n');
-            stream.markdown('Check ID: 789\n');
             stream.markdown('```\n\n');
-            stream.markdown('💡 **Lưu ý**: Đảm bảo bạn đã cấu hình Azure DevOps credentials trong VS Code.');
+            stream.markdown('💡 **Note**: Configure tokens in VS Code settings for private repos.');
             return;
         }
 
-        stream.markdown('🔍 **Analyzing Azure DevOps PR...**\n\n');
-        if (organization && project && repository) {
-            stream.markdown(`🏢 **Organization**: ${organization}\n`);
-            stream.markdown(`📁 **Project**: ${project}\n`);
-            stream.markdown(`📦 **Repository**: ${repository}\n`);
+        // Display repo info based on type
+        if (repoType === 'github') {
+            stream.markdown('� **Analyzing GitHub PR...**\n\n');
+            stream.markdown(`🐙 **Repository**: ${owner}/${repo}\n`);
+            stream.markdown(`📋 **PR**: #${prId}\n`);
+            stream.markdown('⏳ **Fetching from GitHub API...**\n\n');
+        } else {
+            stream.markdown('🔍 **Analyzing Azure DevOps PR...**\n\n');
+            if (organization && project && repository) {
+                stream.markdown(`🏢 **Organization**: ${organization}\n`);
+                stream.markdown(`📁 **Project**: ${project}\n`);
+                stream.markdown(`📦 **Repository**: ${repository}\n`);
+            }
+            stream.markdown(`📋 **PR ID**: ${prId}\n`);
+            stream.markdown('⏳ **Fetching from Azure DevOps API...**\n\n');
         }
-        stream.markdown(`📋 **PR ID**: ${prId}\n`);
-        stream.markdown('⏳ **Fetching PR information from Azure DevOps...**\n\n');
 
-        // Get PR diff and analyze
-        const prAnalysis = await analyzePullRequest(stream, prId, organization, project, repository);
+        // Get PR diff and analyze based on repo type
+        let prAnalysis;
+        if (repoType === 'github') {
+            prAnalysis = await analyzeGitHubPullRequest(stream, owner, repo, prId);
+        } else {
+            prAnalysis = await analyzePullRequest(stream, prId, organization, project, repository);
+        }
 
         if (prAnalysis.error) {
             stream.markdown(`❌ **Error**: ${prAnalysis.error}\n\n`);
@@ -268,28 +298,40 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
 
         console.log('🔍 Getting PR-specific changes from source commit...');
 
-        // STEP 1: Get commit info from PR source commit
-        console.log('📝 Getting commit from PR source...');
+        // STEP 1: Get ALL commits in this PR
+        console.log('📝 Getting all commits from PR...');
+        const commitsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullRequests/${prId}/commits?api-version=7.0&$top=1000`;
+        const commitsResponse = await makeAzureDevOpsRequest(commitsUrl, token);
 
-        if (pr.lastMergeSourceCommit) {
-            const sourceCommitId = pr.lastMergeSourceCommit.commitId;
-            console.log(`📝 PR source commit: ${sourceCommitId.substring(0, 7)}`);
+        if (commitsResponse.success && commitsResponse.data.value?.length > 0) {
+            commits = commitsResponse.data.value;
+            console.log(`✅ Found ${commits.length} commits in PR`);
+            commits.forEach((commit, index) => {
+                console.log(`  ${index + 1}. ${commit.commitId.substring(0, 7)} - ${commit.comment || 'No message'}`);
+            });
+        } else {
+            console.log('⚠️ No commits found, trying single source commit...');
+            // Fallback to single commit if API fails
+            if (pr.lastMergeSourceCommit) {
+                const sourceCommitId = pr.lastMergeSourceCommit.commitId;
+                console.log(`📝 PR source commit: ${sourceCommitId.substring(0, 7)}`);
 
-            // Get detailed info about this specific commit
-            const commitUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/commits/${sourceCommitId}?api-version=7.0`;
-            const commitResponse = await makeAzureDevOpsRequest(commitUrl, token);
+                // Get detailed info about this specific commit
+                const commitUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/commits/${sourceCommitId}?api-version=7.0`;
+                const commitResponse = await makeAzureDevOpsRequest(commitUrl, token);
 
-            if (commitResponse.success && commitResponse.data) {
-                const commit = commitResponse.data;
-                commits = [{
-                    commitId: commit.commitId,
-                    comment: commit.comment || 'No message',
-                    author: {
-                        name: commit.author?.name || 'Unknown',
-                        date: commit.author?.date || new Date().toISOString()
-                    }
-                }];
-                console.log(`✅ Found PR source commit: ${commit.commitId.substring(0, 7)} - ${commit.comment}`);
+                if (commitResponse.success && commitResponse.data) {
+                    const commit = commitResponse.data;
+                    commits = [{
+                        commitId: commit.commitId,
+                        comment: commit.comment || 'No message',
+                        author: {
+                            name: commit.author?.name || 'Unknown',
+                            date: commit.author?.date || new Date().toISOString()
+                        }
+                    }];
+                    console.log(`✅ Found PR source commit: ${commit.commitId.substring(0, 7)} - ${commit.comment}`);
+                }
             }
         }
 
@@ -325,90 +367,56 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
 
                 console.log(`✅ Found ${actualFiles.length} actual file changes in PR (filtered from ${changesResponse.data.changeEntries.length} total entries)`);
 
-                // STEP 4: Try to get actual diff content using git if available
+                // STEP 4: Get diff using Commits Comparison API (cross-repo compatible - no local git needed)
                 let gitDiffSuccessful = false;
+
                 if (pr.lastMergeSourceCommit && pr.lastMergeTargetCommit) {
-                    try {
-                        const baseCommit = pr.lastMergeTargetCommit.commitId;
-                        const headCommit = pr.lastMergeSourceCommit.commitId;
-                        const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+                    console.log('🔄 Fetching diff from Azure DevOps Commits Comparison API (cross-repo mode - no workspace dependency)...');
 
-                        console.log(`🔄 Trying git diff for PR changes: ${baseCommit.substring(0, 7)}..${headCommit.substring(0, 7)}`);
-                        console.log(`📁 Workspace path: ${workspacePath}`);
+                    // Use Diffs API to compare commits
+                    const baseCommit = pr.lastMergeTargetCommit.commitId;
+                    const targetCommit = pr.lastMergeSourceCommit.commitId;
 
-                        // Check if we're in a git repo first
-                        try {
-                            execSync('git rev-parse --git-dir', {
-                                cwd: workspacePath,
-                                stdio: 'pipe'
-                            });
-                            console.log('✅ Git repository detected');
-                        } catch (notGitError) {
-                            console.log('⚠️ Not a git repository, skipping git diff');
-                            throw new Error('Not a git repository');
-                        }
+                    const diffsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${baseCommit}&targetVersion=${targetCommit}&api-version=7.0`;
+                    const diffsResponse = await makeAzureDevOpsRequest(diffsUrl, token);
 
-                        // Try different git diff approaches
-                        let gitDiffOutput = '';
-                        
-                        // Approach 1: Try base..head (3-dot notation for merge-base)
-                        try {
-                            const gitDiffCommand1 = `git diff ${baseCommit}...${headCommit}`;
-                            console.log(`🔄 Trying: ${gitDiffCommand1}`);
-                            gitDiffOutput = execSync(gitDiffCommand1, {
-                                encoding: 'utf8',
-                                cwd: workspacePath,
-                                maxBuffer: 1024 * 1024 * 5,
-                                stdio: 'pipe'
-                            });
-                            console.log(`✅ 3-dot diff result: ${gitDiffOutput.length} chars`);
-                        } catch (diffError1) {
-                            console.log(`⚠️ 3-dot diff failed: ${diffError1.message}`);
-                            
-                            // Approach 2: Try 2-dot notation  
-                            try {
-                                const gitDiffCommand2 = `git diff ${baseCommit}..${headCommit}`;
-                                console.log(`🔄 Trying: ${gitDiffCommand2}`);
-                                gitDiffOutput = execSync(gitDiffCommand2, {
-                                    encoding: 'utf8',
-                                    cwd: workspacePath,
-                                    maxBuffer: 1024 * 1024 * 5,
-                                    stdio: 'pipe'
-                                });
-                                console.log(`✅ 2-dot diff result: ${gitDiffOutput.length} chars`);
-                            } catch (diffError2) {
-                                console.log(`⚠️ 2-dot diff failed: ${diffError2.message}`);
-                                
-                                // Approach 3: Simple diff
-                                const gitDiffCommand3 = `git diff ${baseCommit} ${headCommit}`;
-                                console.log(`🔄 Trying: ${gitDiffCommand3}`);
-                                gitDiffOutput = execSync(gitDiffCommand3, {
-                                    encoding: 'utf8',
-                                    cwd: workspacePath,
-                                    maxBuffer: 1024 * 1024 * 5,
-                                    stdio: 'pipe'
-                                });
-                                console.log(`✅ Simple diff result: ${gitDiffOutput.length} chars`);
+                    if (diffsResponse.success && diffsResponse.data && diffsResponse.data.changes) {
+                        console.log(`✅ Found ${diffsResponse.data.changes.length} changes from Diffs API`);
+
+                        // Build unified diff from changes
+                        const diffParts = [];
+                        for (const change of diffsResponse.data.changes) {
+                            if (change.item && change.item.path) {
+                                const filePath = change.item.path;
+
+                                // Get actual diff content from Items Diff API
+                                const itemDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${baseCommit}&targetVersion=${targetCommit}&diffCommonCommit=false&$format=text&path=${encodeURIComponent(filePath)}&api-version=7.0`;
+                                const itemDiffResponse = await makeAzureDevOpsRequest(itemDiffUrl, token);
+
+                                if (itemDiffResponse.success && typeof itemDiffResponse.data === 'string') {
+                                    diffParts.push(itemDiffResponse.data);
+                                    console.log(`  ✅ Got diff for ${filePath}: ${itemDiffResponse.data.length} chars`);
+                                }
                             }
                         }
 
-                        if (gitDiffOutput && gitDiffOutput.trim()) {
-                            finalDiff = gitDiffOutput;
+                        if (diffParts.length > 0) {
+                            finalDiff = diffParts.join('\n\n');
                             gitDiffSuccessful = true;
-                            diffSource = 'Git diff between PR commits';
-                            console.log(`✅ Git diff successful: ${gitDiffOutput.length} characters`);
+                            diffSource = 'Azure DevOps Commits Comparison API (workspace-independent)';
+                            console.log(`✅ Azure DevOps Diffs API successful: ${finalDiff.length} characters total`);
                         } else {
-                            console.log('⚠️ All git diff approaches returned empty results');
-                            diffSource = 'Azure DevOps API (git diff empty)';
+                            console.log('⚠️ No diff content extracted from Diffs API');
+                            diffSource = 'Azure DevOps Diffs API (no content)';
                         }
-                    } catch (gitError) {
-                        console.log(`⚠️ Git diff failed: ${gitError.message}`);
-                        diffSource = 'Azure DevOps API (git diff failed)';
+                    } else {
+                        console.log('⚠️ Azure DevOps Diffs API call failed or returned no changes');
+                        diffSource = 'Azure DevOps Diffs API (failed)';
                     }
                 }
 
                 // Process file changes
-                fileChanges = actualFiles.map(change => {
+                fileChanges = await Promise.all(actualFiles.map(async (change) => {
                     const filePath = change.item?.path || change.originalPath || 'Unknown';
 
                     // Try to extract diff content from git output if available
@@ -430,10 +438,55 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
 
                     // Fallback to Azure DevOps change info with more details
                     if (!diffContent) {
-                        diffContent = `diff --git a/${filePath} b/${filePath}\n[Azure DevOps API - detailed diff content requires git access]\nChange type: ${change.changeType}\nFile: ${filePath}`;
-                        // Estimate some changes for better display
-                        additions = Math.floor(Math.random() * 10) + 1;
-                        deletions = Math.floor(Math.random() * 3);
+                        console.log(`⚠️ No git diff for ${filePath}, fetching file contents from commits...`);
+
+                        // Get actual file content from both commits to generate diff
+                        const baseCommit = pr.lastMergeTargetCommit?.commitId;
+                        const targetCommit = pr.lastMergeSourceCommit?.commitId;
+
+                        if (baseCommit && targetCommit) {
+                            try {
+                                const baseContent = await getFileContent(organization, project, repository, filePath, baseCommit, token);
+                                const targetContent = await getFileContent(organization, project, repository, filePath, targetCommit, token);
+
+                                if (baseContent !== null || targetContent !== null) {
+                                    // Generate unified diff format
+                                    diffContent = generateUnifiedDiff(filePath, baseContent || '', targetContent || '', change.changeType);
+
+                                    // Count actual changes
+                                    const diffLines = diffContent.split('\n');
+                                    additions = diffLines.filter(line => line.startsWith('+') && !line.startsWith('+++')).length;
+                                    deletions = diffLines.filter(line => line.startsWith('-') && !line.startsWith('---')).length;
+
+                                    console.log(`✅ Generated diff for ${filePath}: +${additions}/-${deletions}`);
+                                } else {
+                                    console.log(`⚠️ Could not fetch file content for ${filePath}`);
+
+                                    // Show metadata at least
+                                    diffContent = `diff --git a${filePath} b${filePath}\n--- a${filePath}\n+++ b${filePath}\n`;
+                                    diffContent += `@@ Azure DevOps API Limitation @@\n`;
+                                    diffContent += `\n`;
+                                    diffContent += `ℹ️  File: ${filePath}\n`;
+                                    diffContent += `📝 Change Type: ${change.changeType}\n`;
+                                    diffContent += `📊 Commits: ${baseCommit.substring(0, 7)} → ${targetCommit.substring(0, 7)}\n`;
+                                    diffContent += `\n`;
+                                    diffContent += `⚠️  Note: Actual diff content cannot be retrieved due to API restrictions.\n`;
+                                    diffContent += `💡 Please review this file directly in Azure DevOps:\n`;
+                                    diffContent += `   https://dev.azure.com/${organization}/${project}/_git/${repository}/pullrequest/${prId}?_a=files\n`;
+
+                                    // Use metadata for line counts if available
+                                    if (change.item?.metadata) {
+                                        additions = parseInt(change.item.metadata.additions) || 0;
+                                        deletions = parseInt(change.item.metadata.deletions) || 0;
+                                    }
+                                }
+                            } catch (err) {
+                                console.log(`❌ Error fetching file content: ${err.message}`);
+                                diffContent = `diff --git a${filePath} b${filePath}\n[Error: ${err.message}]`;
+                            }
+                        } else {
+                            diffContent = `diff --git a${filePath} b${filePath}\n[Missing commit information]`;
+                        }
                     }
 
                     return {
@@ -445,7 +498,7 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
                         deletions: deletions,
                         diffContent: diffContent
                     };
-                });
+                }));
 
                 console.log(`✅ Processed ${fileChanges.length} files with PR-specific changes`);
             } else {
@@ -453,19 +506,7 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
             }
 
         } else {
-            console.log('⚠️ No iterations found for PR - using single latest commit approach');
-
-            // If we don't have commits yet, get them all
-            if (commits.length === 0) {
-                const commitsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullRequests/${prId}/commits?api-version=7.0&$top=1000`;
-                const commitsResponse = await makeAzureDevOpsRequest(commitsUrl, token);
-
-                if (commitsResponse.success && commitsResponse.data.value?.length > 0) {
-                    // Take ALL commits
-                    commits = commitsResponse.data.value;
-                    console.log(`⚠️ Fallback: Using all ${commits.length} commits`);
-                }
-            }
+            console.log('⚠️ No iterations found for PR');
         }
 
         return {
@@ -576,7 +617,331 @@ async function makeAzureDevOpsRequest(url, token, method = 'GET', body = null) {
     });
 }
 
+/**
+ * Get diff content from Azure DevOps API
+ * Uses the Diffs API to get actual diff content
+ */
+async function getAzureDevOpsDiff(organization, project, repository, prId, iterationId, token) {
+    try {
+        console.log(`🔄 Fetching diff via Azure DevOps API: PR ${prId}, Iteration ${iterationId}`);
 
+        // Use iterations changes API which includes diff content
+        const changesUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/pullRequests/${prId}/iterations/${iterationId}/changes?$top=100&api-version=7.0`;
+
+        console.log(`� Fetching from: ${changesUrl}`);
+        const changesResponse = await makeAzureDevOpsRequest(changesUrl, token);
+
+        if (!changesResponse.success || !changesResponse.data) {
+            console.log('⚠️ Failed to get iteration changes');
+            return '';
+        }
+
+        console.log('🔍 DEBUG: Changes API Response keys:', Object.keys(changesResponse.data));
+
+        const changeEntries = changesResponse.data.changeEntries || [];
+        console.log(`📁 Found ${changeEntries.length} change entries from API`);
+
+        if (changeEntries.length > 0) {
+            console.log('🔍 DEBUG: First change entry structure:');
+            console.log(JSON.stringify(changeEntries[0], null, 2).substring(0, 1500));
+        }
+
+        // Build unified diff format from changes
+        let unifiedDiff = '';
+        let processedFiles = 0;
+
+        for (const change of changeEntries) {
+            // Skip folders and only process actual files
+            if (!change.item || change.item.isFolder || change.item.gitObjectType !== 'blob') {
+                continue;
+            }
+
+            const filePath = change.item.path;
+            const changeType = change.changeType || 'edit';
+
+            console.log(`📄 Processing: ${filePath} (${changeType})`);
+
+            // Create diff header
+            unifiedDiff += `diff --git a${filePath} b${filePath}\n`;
+
+            // Add change type info
+            if (changeType.toLowerCase().includes('add')) {
+                unifiedDiff += `new file mode 100644\n`;
+                unifiedDiff += `--- /dev/null\n`;
+                unifiedDiff += `+++ b${filePath}\n`;
+            } else if (changeType.toLowerCase().includes('delete')) {
+                unifiedDiff += `deleted file mode 100644\n`;
+                unifiedDiff += `--- a${filePath}\n`;
+                unifiedDiff += `+++ /dev/null\n`;
+            } else {
+                unifiedDiff += `--- a${filePath}\n`;
+                unifiedDiff += `+++ b${filePath}\n`;
+            }
+
+            // Check if change has inline diff content
+            if (change.changeTrackingId) {
+                console.log(`🔍 Change has tracking ID: ${change.changeTrackingId}`);
+            }
+
+            // Try to use sourceServerItem and targetServerItem for diff
+            if (change.item && change.item.objectId) {
+                console.log(`✅ Has objectId: ${change.item.objectId.substring(0, 7)}`);
+
+                // Get the base version if available
+                let baseObjectId = null;
+                if (change.sourceServerItem) {
+                    // This is the previous version
+                    console.log(`📋 Has sourceServerItem: ${change.sourceServerItem}`);
+                }
+
+                // For now, add placeholder with file info
+                unifiedDiff += `@@ Changes in ${filePath} @@\n`;
+                unifiedDiff += `Object ID: ${change.item.objectId}\n`;
+
+                // Try to fetch actual file diff using commits endpoint
+                // We'll need the commit IDs from the PR
+
+            } else {
+                console.log(`⚠️ No objectId for ${filePath}`);
+                unifiedDiff += `@@ File changed (no diff available) @@\n`;
+            }
+
+            unifiedDiff += '\n';
+            processedFiles++;
+        }
+
+        console.log(`✅ Built unified diff for ${processedFiles} files, total ${unifiedDiff.length} chars`);
+        return unifiedDiff;
+
+    } catch (error) {
+        console.error(`❌ Error getting Azure DevOps diff: ${error.message}`);
+        console.error(error.stack);
+        return '';
+    }
+}
+
+/**
+ * Get file content from a specific commit using download endpoint
+ */
+async function getFileContent(organization, project, repository, filePath, commitId, token) {
+    try {
+        console.log(`🔄 Fetching content for ${filePath} at commit ${commitId.substring(0, 7)}`);
+
+        // Use download parameter to get actual content as text
+        const itemUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/items?path=${encodeURIComponent(filePath)}&versionDescriptor.version=${commitId}&versionDescriptor.versionType=commit&download=true&api-version=7.0`;
+
+        // Make request expecting text response
+        const response = await new Promise((resolve) => {
+            const authToken = Buffer.from(':' + token).toString('base64');
+            const url = new URL(itemUrl);
+
+            const options = {
+                hostname: url.hostname,
+                path: url.pathname + url.search,
+                method: 'GET',
+                headers: {
+                    'Authorization': `Basic ${authToken}`,
+                    'Accept': 'text/plain',
+                    'User-Agent': 'VSCode-Extension'
+                }
+            };
+
+            const req = https.request(options, (res) => {
+                let data = '';
+
+                res.on('data', (chunk) => {
+                    data += chunk.toString();
+                });
+
+                res.on('end', () => {
+                    if (res.statusCode === 200) {
+                        resolve({ success: true, data: data });
+                    } else {
+                        console.log(`⚠️ Download failed: ${res.statusCode} ${res.statusMessage}`);
+                        resolve({ success: false, error: `HTTP ${res.statusCode}` });
+                    }
+                });
+            });
+
+            req.on('error', (error) => {
+                resolve({ success: false, error: error.message });
+            });
+
+            req.setTimeout(10000, () => {
+                req.destroy();
+                resolve({ success: false, error: 'Timeout' });
+            });
+
+            req.end();
+        });
+
+        if (response.success && response.data) {
+            console.log(`✅ Got file content: ${response.data.length} chars`);
+            return response.data;
+        }
+
+        console.log(`❌ Could not fetch content: ${response.error || 'unknown'}`);
+        return null;
+    } catch (error) {
+        console.log(`❌ Error fetching content for ${filePath}: ${error.message}`);
+        return null;
+    }
+}
+
+/**
+ * Generate unified diff format from two file contents
+ */
+/**
+ * Generate unified diff format from two file contents using proper diff algorithm
+ */
+function generateUnifiedDiff(filePath, baseContent, targetContent, changeType) {
+    let diff = `diff --git a${filePath} b${filePath}\n`;
+
+    // Add change type headers
+    if (changeType && changeType.toLowerCase().includes('add')) {
+        diff += `new file mode 100644\n`;
+        diff += `--- /dev/null\n`;
+        diff += `+++ b${filePath}\n`;
+    } else if (changeType && changeType.toLowerCase().includes('delete')) {
+        diff += `deleted file mode 100644\n`;
+        diff += `--- a${filePath}\n`;
+        diff += `+++ /dev/null\n`;
+    } else {
+        diff += `--- a${filePath}\n`;
+        diff += `+++ b${filePath}\n`;
+    }
+
+    // Split into lines
+    const baseLines = baseContent ? baseContent.split('\n') : [];
+    const targetLines = targetContent ? targetContent.split('\n') : [];
+
+    // Use Myers diff algorithm (simplified)
+    const changes = computeDiff(baseLines, targetLines);
+
+    // Group changes into hunks
+    const hunks = groupIntoHunks(changes, baseLines, targetLines);
+
+    // Generate unified diff output
+    for (const hunk of hunks) {
+        diff += `@@ -${hunk.baseStart},${hunk.baseLength} +${hunk.targetStart},${hunk.targetLength} @@\n`;
+        for (const line of hunk.lines) {
+            diff += line + '\n';
+        }
+    }
+
+    return diff;
+}
+
+/**
+ * Simple diff algorithm (Myers diff simplified)
+ */
+function computeDiff(baseLines, targetLines) {
+    const changes = [];
+    const n = baseLines.length;
+    const m = targetLines.length;
+
+    // Build LCS (Longest Common Subsequence) table
+    const lcs = Array(n + 1).fill(null).map(() => Array(m + 1).fill(0));
+
+    for (let i = 1; i <= n; i++) {
+        for (let j = 1; j <= m; j++) {
+            if (baseLines[i - 1] === targetLines[j - 1]) {
+                lcs[i][j] = lcs[i - 1][j - 1] + 1;
+            } else {
+                lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
+            }
+        }
+    }
+
+    // Backtrack to find changes
+    let i = n, j = m;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && baseLines[i - 1] === targetLines[j - 1]) {
+            changes.unshift({ type: 'equal', baseLine: i - 1, targetLine: j - 1, content: baseLines[i - 1] });
+            i--;
+            j--;
+        } else if (j > 0 && (i === 0 || lcs[i][j - 1] >= lcs[i - 1][j])) {
+            changes.unshift({ type: 'add', targetLine: j - 1, content: targetLines[j - 1] });
+            j--;
+        } else if (i > 0) {
+            changes.unshift({ type: 'delete', baseLine: i - 1, content: baseLines[i - 1] });
+            i--;
+        }
+    }
+
+    return changes;
+}
+
+/**
+ * Group changes into hunks with context
+ */
+function groupIntoHunks(changes, baseLines, targetLines, contextLines = 3) {
+    const hunks = [];
+    let currentHunk = null;
+
+    for (let i = 0; i < changes.length; i++) {
+        const change = changes[i];
+
+        if (change.type !== 'equal') {
+            // Start new hunk if needed
+            if (!currentHunk) {
+                // Include context before
+                const contextStart = Math.max(0, i - contextLines);
+                currentHunk = {
+                    baseStart: changes[contextStart].baseLine !== undefined ? changes[contextStart].baseLine + 1 : 1,
+                    targetStart: changes[contextStart].targetLine !== undefined ? changes[contextStart].targetLine + 1 : 1,
+                    baseLength: 0,
+                    targetLength: 0,
+                    lines: []
+                };
+
+                // Add context lines
+                for (let ctx = contextStart; ctx < i; ctx++) {
+                    if (changes[ctx].type === 'equal') {
+                        currentHunk.lines.push(` ${changes[ctx].content}`);
+                        currentHunk.baseLength++;
+                        currentHunk.targetLength++;
+                    }
+                }
+            }
+
+            // Add change
+            if (change.type === 'delete') {
+                currentHunk.lines.push(`-${change.content}`);
+                currentHunk.baseLength++;
+            } else if (change.type === 'add') {
+                currentHunk.lines.push(`+${change.content}`);
+                currentHunk.targetLength++;
+            }
+        } else if (currentHunk) {
+            // Add context after change
+            currentHunk.lines.push(` ${change.content}`);
+            currentHunk.baseLength++;
+            currentHunk.targetLength++;
+
+            // Check if we should close this hunk
+            let hasMoreChanges = false;
+            for (let j = i + 1; j < Math.min(i + contextLines + 1, changes.length); j++) {
+                if (changes[j].type !== 'equal') {
+                    hasMoreChanges = true;
+                    break;
+                }
+            }
+
+            if (!hasMoreChanges) {
+                hunks.push(currentHunk);
+                currentHunk = null;
+            }
+        }
+    }
+
+    // Add final hunk if exists
+    if (currentHunk) {
+        hunks.push(currentHunk);
+    }
+
+    return hunks;
+}
 
 /**
  * Test function to analyze final diff content
@@ -585,57 +950,324 @@ function testAnalyzeFinalDiff(finalDiff, fileChanges) {
     console.log('\n=== FINAL DIFF ANALYSIS TEST ===');
     console.log(`📊 Final diff total length: ${finalDiff?.length || 0} characters`);
     console.log(`📊 Expected files from PR: ${fileChanges?.length || 0} files`);
-    
+
     if (fileChanges) {
         console.log('\n🎯 Expected PR files:');
         fileChanges.forEach((file, i) => {
-            console.log(`  ${i+1}. ${file.path} (+${file.additions}/-${file.deletions})`);
+            console.log(`  ${i + 1}. ${file.path} (+${file.additions}/-${file.deletions})`);
         });
     }
-    
+
     if (finalDiff) {
         // Extract all files mentioned in the diff
         const diffFileMatches = finalDiff.match(/diff --git a\/(.+?) b\/(.+?)(?=\n|$)/g) || [];
         console.log(`\n📄 Files found in finalDiff: ${diffFileMatches.length} files`);
-        
+
         const diffFiles = [];
         diffFileMatches.forEach((match, i) => {
             const fileMatch = match.match(/diff --git a\/(.+?) b\/(.+?)$/);
             if (fileMatch) {
                 const filePath = fileMatch[1];
                 diffFiles.push(filePath);
-                
+
                 if (i < 20) { // Show first 20 files
-                    console.log(`  ${i+1}. ${filePath}`);
+                    console.log(`  ${i + 1}. ${filePath}`);
                 } else if (i === 20) {
                     console.log(`  ... and ${diffFileMatches.length - 20} more files`);
                 }
             }
         });
-        
+
         // Check which expected files are missing from diff
         if (fileChanges) {
             const expectedFiles = fileChanges.map(f => f.path);
             const missingFiles = expectedFiles.filter(file => !diffFiles.includes(file));
             const extraFiles = diffFiles.filter(file => !expectedFiles.includes(file));
-            
+
             console.log(`\n❌ Missing files (in PR but not in diff): ${missingFiles.length}`);
             missingFiles.forEach(file => console.log(`  - ${file}`));
-            
+
             console.log(`\n➕ Extra files (in diff but not in PR): ${extraFiles.length}`);
             extraFiles.slice(0, 10).forEach(file => console.log(`  + ${file}`));
             if (extraFiles.length > 10) {
                 console.log(`  + ... and ${extraFiles.length - 10} more extra files`);
             }
         }
-        
+
         // Show first 1000 characters of diff for context
         console.log('\n📝 First 1000 chars of finalDiff:');
         console.log(finalDiff.substring(0, 1000));
         console.log('\n... (truncated)');
     }
-    
+
     console.log('\n=== END FINAL DIFF ANALYSIS ===\n');
+}
+
+/**
+ * Analyze GitHub Pull Request using GitHub REST API
+ * @param {object} stream - VS Code stream for progress updates
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} prId - Pull Request number
+ */
+async function analyzeGitHubPullRequest(stream, owner, repo, prId) {
+    try {
+        // Get GitHub token from VS Code settings
+        const config = vscode.workspace.getConfiguration('aiSelfCheck');
+        const githubToken = config.get('github.personalAccessToken');
+
+        console.log(`🔄 Fetching GitHub PR ${owner}/${repo}#${prId}`);
+
+        // Get PR details from GitHub API
+        const prData = await getGitHubPR(owner, repo, prId, githubToken);
+
+        if (!prData.success) {
+            console.error('Failed to get GitHub PR:', prData.error);
+            stream.markdown('❌ **GitHub API Error**\n\n');
+            stream.markdown(`Error: ${prData.error}\n\n`);
+
+            if (!githubToken) {
+                stream.markdown('**Configure GitHub Token:**\n\n');
+                stream.markdown('[🔧 Open User Settings JSON](command:workbench.action.openSettingsJson)\n\n');
+                stream.markdown('```json\n');
+                stream.markdown('{\n');
+                stream.markdown('    "aiSelfCheck.github.personalAccessToken": "YOUR_GITHUB_TOKEN"\n');
+                stream.markdown('}\n');
+                stream.markdown('```\n\n');
+                stream.markdown('**Create token at:** https://github.com/settings/tokens\n');
+                stream.markdown('**Required scope:** `repo` (for private repos) or `public_repo` (for public repos)\n\n');
+            }
+
+            return { error: prData.error };
+        }
+
+        return prData;
+
+    } catch (error) {
+        console.error('Error in analyzeGitHubPullRequest:', error);
+        return { error: `Analysis failed: ${error.message}` };
+    }
+}
+
+/**
+ * Get Pull Request data from GitHub REST API
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} prId - Pull Request number
+ * @param {string} token - GitHub Personal Access Token (optional for public repos)
+ */
+async function getGitHubPR(owner, repo, prId, token) {
+    try {
+        console.log(`📝 Fetching PR details: ${owner}/${repo}#${prId}`);
+
+        // Get PR details
+        const prUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prId}`;
+        const prResponse = await makeGitHubRequest(prUrl, token);
+
+        if (!prResponse.success) {
+            console.error('Failed to get PR details:', prResponse.error);
+            return { success: false, error: `Failed to get PR: ${prResponse.error}` };
+        }
+
+        const pr = prResponse.data;
+
+        // Get PR files (changes)
+        console.log('📁 Fetching changed files...');
+        const filesUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prId}/files`;
+        const filesResponse = await makeGitHubRequest(filesUrl, token);
+
+        if (!filesResponse.success) {
+            console.error('Failed to get files:', filesResponse.error);
+            return { success: false, error: `Failed to get files: ${filesResponse.error}` };
+        }
+
+        const files = filesResponse.data;
+        console.log(`✅ Found ${files.length} changed files`);
+
+        // Get diff in unified format
+        console.log('🔄 Fetching unified diff from GitHub...');
+        const diffUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prId}`;
+        const diffResponse = await makeGitHubRequest(diffUrl, token, 'GET', {
+            'Accept': 'application/vnd.github.v3.diff'
+        });
+
+        let finalDiff = '';
+        if (diffResponse.success && typeof diffResponse.data === 'string') {
+            finalDiff = diffResponse.data;
+            console.log(`✅ Got unified diff: ${finalDiff.length} characters`);
+        } else {
+            console.log('⚠️ Could not get unified diff, will build from file patches');
+        }
+
+        // Process file changes
+        const fileChanges = files.map(file => {
+            let diffContent = '';
+
+            // Use patch from API if available
+            if (file.patch) {
+                diffContent = `diff --git a/${file.filename} b/${file.filename}\n`;
+                diffContent += `--- a/${file.filename}\n`;
+                diffContent += `+++ b/${file.filename}\n`;
+                diffContent += file.patch;
+            } else if (finalDiff) {
+                // Extract from unified diff
+                const filePattern = new RegExp(`diff --git a/${file.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} b/${file.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)(?=diff --git|$)`, 'g');
+                const match = filePattern.exec(finalDiff);
+                if (match) {
+                    diffContent = `diff --git a/${file.filename} b/${file.filename}${match[1]}`;
+                }
+            }
+
+            return {
+                path: file.filename,
+                changeType: file.status, // 'added', 'removed', 'modified', 'renamed'
+                additions: file.additions || 0,
+                deletions: file.deletions || 0,
+                changes: file.changes || 0,
+                diffContent: diffContent,
+                previousFilename: file.previous_filename
+            };
+        });
+
+        // Get commits
+        console.log('📝 Fetching commits...');
+        const commitsUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prId}/commits`;
+        const commitsResponse = await makeGitHubRequest(commitsUrl, token);
+
+        let commits = [];
+        if (commitsResponse.success && commitsResponse.data) {
+            commits = commitsResponse.data.map(commit => ({
+                commitId: commit.sha,
+                comment: commit.commit.message,
+                author: {
+                    name: commit.commit.author.name,
+                    date: commit.commit.author.date
+                }
+            }));
+            console.log(`✅ Found ${commits.length} commits`);
+        }
+
+        return {
+            success: true,
+            data: {
+                id: prId,
+                title: pr.title || `PR #${prId}`,
+                description: pr.body || 'No description provided',
+                author: pr.user?.login || 'Unknown',
+                status: pr.state || 'open',
+                owner: owner,
+                repository: repo,
+                sourceCommit: pr.head?.sha,
+                targetCommit: pr.base?.sha,
+                sourceBranch: pr.head?.ref,
+                targetBranch: pr.base?.ref,
+                diffCommand: 'GitHub API (workspace-independent)',
+                fileChanges: fileChanges,
+                commits: commits,
+                totalCommits: commits.length,
+                finalDiff: finalDiff,
+                commitsList: commits.map(commit => ({
+                    id: commit.commitId.substring(0, 7),
+                    fullId: commit.commitId,
+                    message: commit.comment,
+                    author: commit.author.name,
+                    date: commit.author.date
+                })),
+                analysis: {
+                    quality: `GitHub PR with ${fileChanges.length} file(s) changed`,
+                    security: 'Complete PR diff analysis',
+                    performance: 'Full PR data from GitHub API',
+                    testCoverage: 'Review test coverage for modified files',
+                    codeReview: [
+                        `📁 ${fileChanges.length} file(s) changed`,
+                        `➕ ${fileChanges.reduce((sum, f) => sum + f.additions, 0)} lines added`,
+                        `➖ ${fileChanges.reduce((sum, f) => sum + f.deletions, 0)} lines removed`,
+                        `🔍 Source: GitHub REST API`,
+                        `📝 ${commits.length} commits`,
+                        `🌿 ${pr.head?.ref} → ${pr.base?.ref}`
+                    ]
+                }
+            }
+        };
+    } catch (error) {
+        console.error('Error in getGitHubPR:', error);
+        return { success: false, error: `Unable to fetch PR: ${error.message}` };
+    }
+}
+
+/**
+ * Make HTTP request to GitHub REST API
+ * @param {string} url - API endpoint URL
+ * @param {string} token - GitHub Personal Access Token (optional)
+ * @param {string} method - HTTP method (default: GET)
+ * @param {object} customHeaders - Additional headers
+ */
+async function makeGitHubRequest(url, token, method = 'GET', customHeaders = {}) {
+    return new Promise((resolve) => {
+        const urlObj = new URL(url);
+        const headers = {
+            'User-Agent': 'VSCode-AI-Self-Check-Extension',
+            'Accept': 'application/vnd.github.v3+json',
+            ...customHeaders
+        };
+
+        // Add authentication if token is provided
+        if (token && token.trim()) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const options = {
+            hostname: urlObj.hostname,
+            port: 443,
+            path: urlObj.pathname + urlObj.search,
+            method: method,
+            headers: headers
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                try {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        // Check if response is JSON or plain text (diff)
+                        if (customHeaders['Accept']?.includes('diff')) {
+                            resolve({ success: true, data: data });
+                        } else {
+                            const parsed = JSON.parse(data);
+                            resolve({ success: true, data: parsed });
+                        }
+                    } else {
+                        let errorMsg = `HTTP ${res.statusCode}`;
+                        try {
+                            const errorData = JSON.parse(data);
+                            errorMsg += `: ${errorData.message || data}`;
+                        } catch {
+                            errorMsg += `: ${data}`;
+                        }
+                        resolve({ success: false, error: errorMsg });
+                    }
+                } catch (parseError) {
+                    resolve({ success: false, error: `Parse error: ${parseError.message}` });
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            resolve({ success: false, error: error.message });
+        });
+
+        req.setTimeout(15000, () => {
+            req.destroy();
+            resolve({ success: false, error: 'Request timeout' });
+        });
+
+        req.end();
+    });
 }
 
 /**
@@ -746,17 +1378,35 @@ function parseRealGitDiff(gitDiff, prId, org, proj, repo, diffCommand) {
 async function addQuickReviewOption(stream, prAnalysis, request) {
     const data = prAnalysis.data;
 
-    // Only proceed if we have final diff content
-    if (!data.finalDiff || !data.finalDiff.trim()) {
+    // Build diff from finalDiff or individual file diffs
+    let diffContent = '';
+
+    if (data.finalDiff && data.finalDiff.trim()) {
+        diffContent = data.finalDiff;
+        console.log(`✅ Using finalDiff: ${diffContent.length} chars`);
+    } else if (data.fileChanges && data.fileChanges.length > 0) {
+        // Fallback: build diff from individual file diffs
+        console.log(`⚠️ No finalDiff, building from ${data.fileChanges.length} file changes`);
+        diffContent = data.fileChanges
+            .filter(file => file.diffContent && file.diffContent.trim())
+            .map(file => file.diffContent)
+            .join('\n\n');
+        console.log(`✅ Built diff from files: ${diffContent.length} chars`);
+    }
+
+    // Only proceed if we have any diff content
+    if (!diffContent || !diffContent.trim()) {
+        console.log('⚠️ No diff content available for review');
+        stream.markdown('⚠️ **No diff content available for AI review**\n\n');
         return;
     }
 
     try {
-        stream.markdown('## 🚀 Quick Review Analysis\n\n');
-        stream.markdown('⚡ **Performing AI-powered quick assessment...**\n\n');
+        stream.markdown('## 🚀 AI-Powered Code Review\n\n');
+        stream.markdown('⚡ **Analyzing code changes with AI...**\n\n');
 
         // Actually perform the quick review with AI
-        await performQuickReviewWithAI(stream, data, request);
+        await performQuickReviewWithAI(stream, data, request, diffContent);
 
     } catch (error) {
         console.error('Error in quick review option:', error);
@@ -767,7 +1417,7 @@ async function addQuickReviewOption(stream, prAnalysis, request) {
 /**
  * Perform quick review with AI using template and shared functions
  */
-async function performQuickReviewWithAI(stream, prData, request) {
+async function performQuickReviewWithAI(stream, prData, request, diffContent) {
     let templateContent;
 
     try {
@@ -783,34 +1433,11 @@ async function performQuickReviewWithAI(stream, prData, request) {
         return;
     }
 
-    // Debug: Show diff info before filtering
-    console.log(`🔍 Original finalDiff length: ${prData.finalDiff?.length || 0} chars`);
-    console.log(`🔍 FileChanges count: ${prData.fileChanges?.length || 0}`);
-    
-    // Call test function to analyze the diff structure
-    testAnalyzeFinalDiff(prData.finalDiff, prData.fileChanges);
-    
-    // For now, disable filtering to ensure we don't lose diff content
-    let filteredDiff = prData.finalDiff || '';
-    
-    // TODO: Re-enable filtering after debugging
-    /*
-    if (prData.finalDiff && prData.fileChanges) {
-        const prFiles = prData.fileChanges.map(f => f.path);
-        console.log(`🔍 PR files: ${prFiles.join(', ')}`);
-        
-        // Show first 500 chars of original diff for debugging
-        console.log(`🔍 Original diff preview:\n${prData.finalDiff.substring(0, 500)}...`);
-    }
-    */
-    
-    // Replace template placeholders with diff content (unfiltered for now)
-    const processedTemplate = templateContent.replace(/\{\{FINAL_DIFF_CONTENT\}\}/g, filteredDiff);
-    
-    // Debug: Verify final diff consistency
-    console.log(`🔍 finalDiff length: ${prData.finalDiff?.length || 0}`);
-    console.log(`🔍 filteredDiff length: ${filteredDiff?.length || 0}`);
-    console.log(`🔍 Content identical: ${prData.finalDiff === filteredDiff}`);
+    // Use provided diffContent (from finalDiff or built from files)
+    console.log(`🔍 Diff content for review: ${diffContent.length} chars`);
+
+    // Replace template placeholders with diff content
+    const processedTemplate = templateContent.replace(/\{\{FINAL_DIFF_CONTENT\}\}/g, diffContent);
 
     try {
         stream.markdown('🔄 **AI Quick Analysis in progress...** (streaming PR assessment)\n\n');
@@ -1267,7 +1894,18 @@ async function displayPrReviewResults(stream, prAnalysis) {
         });
     }
 
-    if (!isShowSummaryOfChanges && data.fileChanges && data.fileChanges.length > 0) {
+    // Summary of Changes section (controlled by global variable)
+    const totalFiles = data.fileChanges ? data.fileChanges.length : 0;
+    const totalAdditions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.additions, 0) : 0;
+    const totalDeletions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.deletions, 0) : 0;
+
+    stream.markdown('## 📊 Summary of Changes\n\n');
+    stream.markdown(`📁 **${totalFiles} file(s)** changed\n`);
+    stream.markdown(`➕ **${totalAdditions} lines** added\n`);
+    stream.markdown(`➖ **${totalDeletions} lines** deleted\n\n`);
+
+    // Files Changed Summary
+    if (data.fileChanges && data.fileChanges.length > 0) {
         stream.markdown('## 📁 Files Changed Summary\n\n');
 
         data.fileChanges.forEach((file, index) => {
@@ -1283,197 +1921,118 @@ async function displayPrReviewResults(stream, prAnalysis) {
             stream.markdown(`${index + 1}. **\`${file.path}\`**\n`);
             stream.markdown(`   ${changeIcon} | ${statsText}\n\n`);
         });
-    }
 
-    // Summary of Changes section (controlled by global variable)
-    if (isShowSummaryOfChanges) {
-        const totalFiles = data.fileChanges ? data.fileChanges.length : 0;
-        const totalAdditions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.additions, 0) : 0;
-        const totalDeletions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.deletions, 0) : 0;
+        // Debug info
+        console.log(`📊 Processing ${data.fileChanges.length} files for detailed diffs`);
+        console.log(`📊 Final diff available: ${data.finalDiff ? 'YES' : 'NO'} (${data.finalDiff?.length || 0} chars)`);
 
-        stream.markdown('## 📊 Summary of Changes\n\n');
-        stream.markdown(`📁 **${totalFiles} file(s)** changed\n`);
-        stream.markdown(`➕ **${totalAdditions} lines** added\n`);
-        stream.markdown(`➖ **${totalDeletions} lines** deleted\n\n`);
+        // Debug: Show which files are in finalDiff vs fileChanges
+        console.log('🔍 Files in fileChanges array:');
+        data.fileChanges.forEach((file, i) => {
+            console.log(`  ${i + 1}. ${file.path} (${file.changeType}, +${file.additions}/-${file.deletions})`);
+        });
 
-        // Final Diff (All Commits Combined)
-        if (data.finalDiff && data.finalDiff.trim()) {
-            stream.markdown('## 🔍 Final Diff (All Commits Combined)\n\n');
-            stream.markdown('```diff\n');
-            stream.markdown(data.finalDiff);
-            stream.markdown('\n```\n\n');
-        }
+      
+        // Cache diff content for webview (without displaying section)
+        data.fileChanges.forEach((file, index) => {
+            // Show diff content from multiple possible sources
+            let diffToShow = '';
 
-        // Files Changed Summary
-        if (data.fileChanges && data.fileChanges.length > 0) {
-            stream.markdown('## 📁 Files Changed Summary\n\n');
+            // Priority 1: Extract from final diff if available (most reliable source)
+            if (data.finalDiff && file.path) {
+                console.log(`🔍 Extracting diff for file: ${file.path}`);
 
-            data.fileChanges.forEach((file, index) => {
-                // Change type icon
-                const changeIcon = file.changeType === 'edit' ? '📝 edit' :
-                    file.changeType === 'add' ? '➕ add' :
-                        file.changeType === 'delete' ? '🗑️ delete' : `📝 ${file.changeType}`;
+                // Escape special regex characters in file path
+                const escapedPath = file.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-                // Change statistics with colors
-                const statsText = file.additions > 0 || file.deletions > 0 ?
-                    `+${file.additions}/-${file.deletions} lines` : 'binary file';
+                // Create pattern to match the file's diff section
+                const filePattern = new RegExp(`diff --git a/${escapedPath} b/${escapedPath}([\\s\\S]*?)(?=\\ndiff --git|$)`, 'm');
+                const match = data.finalDiff.match(filePattern);
 
-                stream.markdown(`${index + 1}. **\`${file.path}\`**\n`);
-                stream.markdown(`   ${changeIcon} | ${statsText}\n\n`);
-            });
+                if (match && match[0]) {
+                    diffToShow = match[0].trim();
+                    console.log(`✅ Found diff for ${file.path}: ${diffToShow.length} characters`);
+                } else {
+                    console.log(`⚠️ No diff pattern match found for ${file.path}`);
+                    // Try simpler pattern - just look for the filename anywhere in the diff
+                    const lines = data.finalDiff.split('\n');
+                    let fileStartIndex = -1;
+                    let fileEndIndex = -1;
 
-            // Debug info
-            console.log(`📊 Processing ${data.fileChanges.length} files for detailed diffs`);
-            console.log(`📊 Final diff available: ${data.finalDiff ? 'YES' : 'NO'} (${data.finalDiff?.length || 0} chars)`);
-            
-            // Debug: Show which files are in finalDiff vs fileChanges
-            console.log('🔍 Files in fileChanges array:');
-            data.fileChanges.forEach((file, i) => {
-                console.log(`  ${i+1}. ${file.path} (${file.changeType}, +${file.additions}/-${file.deletions})`);
-            });
-            
-            if (data.finalDiff) {
-                const diffFiles = data.finalDiff.match(/diff --git a\/(.+?) b\//g) || [];
-                console.log(`🔍 Files found in finalDiff: ${diffFiles.length}`);
-                diffFiles.slice(0, 10).forEach((match, i) => {
-                    const fileName = match.replace(/^diff --git a\//, '').replace(/ b\/$/, '');
-                    console.log(`  ${i+1}. ${fileName}`);
-                });
-                if (diffFiles.length > 10) {
-                    console.log(`  ... and ${diffFiles.length - 10} more files`);
+                    for (let i = 0; i < lines.length; i++) {
+                        if (lines[i].includes(`diff --git`) && lines[i].includes(file.path)) {
+                            fileStartIndex = i;
+                        } else if (fileStartIndex !== -1 && lines[i].includes(`diff --git`) && !lines[i].includes(file.path)) {
+                            fileEndIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (fileStartIndex !== -1) {
+                        const endIndex = fileEndIndex !== -1 ? fileEndIndex : lines.length;
+                        diffToShow = lines.slice(fileStartIndex, endIndex).join('\n').trim();
+                        console.log(`✅ Found diff using line search for ${file.path}: ${diffToShow.length} characters`);
+                    }
                 }
             }
 
-            // Show detailed diff content for EACH file
-            stream.markdown('## 📄 Detailed File Diffs\n\n');
+            // Priority 2: diffContent property
+            if (!diffToShow && file.diffContent && file.diffContent.trim()) {
+                diffToShow = file.diffContent;
+                console.log(`✅ Using diffContent for ${file.path}`);
+            }
 
-            data.fileChanges.forEach((file, index) => {
-                stream.markdown(`### ${index + 1}. \`${file.path}\`\n\n`);
+            // Priority 3: diff property (legacy)
+            if (!diffToShow && file.diff && file.diff.trim()) {
+                diffToShow = file.diff;
+                console.log(`✅ Using legacy diff property for ${file.path}`);
+            }
 
-                // Show diff content from multiple possible sources
-                let diffToShow = '';
+            if (diffToShow && diffToShow.trim()) {
+                // Clean up the diff content
+                let cleanDiff = diffToShow;
 
-                // Priority 1: Extract from final diff if available (most reliable source)
-                if (data.finalDiff && file.path) {
-                    console.log(`🔍 Extracting diff for file: ${file.path}`);
+                // Remove any API error messages
+                cleanDiff = cleanDiff.replace(/\[Azure DevOps API - detailed diff content requires git access\]/g, '');
+                cleanDiff = cleanDiff.replace(/Change type: \w+/g, '');
+                cleanDiff = cleanDiff.replace(/File: .*$/gm, '');
 
-                    // Escape special regex characters in file path
-                    const escapedPath = file.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                    // Create pattern to match the file's diff section
-                    const filePattern = new RegExp(`diff --git a/${escapedPath} b/${escapedPath}([\\s\\S]*?)(?=\\ndiff --git|$)`, 'm');
-                    const match = data.finalDiff.match(filePattern);
-
-                    if (match && match[0]) {
-                        diffToShow = match[0].trim();
-                        console.log(`✅ Found diff for ${file.path}: ${diffToShow.length} characters`);
-                    } else {
-                        console.log(`⚠️ No diff pattern match found for ${file.path}`);
-                        // Try simpler pattern - just look for the filename anywhere in the diff
-                        const lines = data.finalDiff.split('\n');
-                        let fileStartIndex = -1;
-                        let fileEndIndex = -1;
-
-                        for (let i = 0; i < lines.length; i++) {
-                            if (lines[i].includes(`diff --git`) && lines[i].includes(file.path)) {
-                                fileStartIndex = i;
-                            } else if (fileStartIndex !== -1 && lines[i].includes(`diff --git`) && !lines[i].includes(file.path)) {
-                                fileEndIndex = i;
-                                break;
-                            }
-                        }
-
-                        if (fileStartIndex !== -1) {
-                            const endIndex = fileEndIndex !== -1 ? fileEndIndex : lines.length;
-                            diffToShow = lines.slice(fileStartIndex, endIndex).join('\n').trim();
-                            console.log(`✅ Found diff using line search for ${file.path}: ${diffToShow.length} characters`);
-                        }
-                    }
+                // Ensure it starts with diff --git
+                if (!cleanDiff.startsWith('diff --git')) {
+                    cleanDiff = `diff --git a/${file.path} b/${file.path}\n${cleanDiff}`;
                 }
 
-                // Priority 2: diffContent property
-                if (!diffToShow && file.diffContent && file.diffContent.trim()) {
-                    diffToShow = file.diffContent;
-                    console.log(`✅ Using diffContent for ${file.path}`);
-                }
+                // Store diff in global cache for webview
+                const diffId = `pr${data.id}_file${index}`;
+                global.prDiffCache = global.prDiffCache || {};
+                global.prDiffCache[diffId] = {
+                    path: file.path,
+                    diff: cleanDiff.trim(),
+                    changeType: file.changeType,
+                    additions: file.additions || 0,
+                    deletions: file.deletions || 0
+                };
 
-                // Priority 3: diff property (legacy)
-                if (!diffToShow && file.diff && file.diff.trim()) {
-                    diffToShow = file.diff;
-                    console.log(`✅ Using legacy diff property for ${file.path}`);
-                }
-
-                if (diffToShow && diffToShow.trim()) {
-                    // Clean up the diff content
-                    let cleanDiff = diffToShow;
-
-                    // Remove any API error messages
-                    cleanDiff = cleanDiff.replace(/\[Azure DevOps API - detailed diff content requires git access\]/g, '');
-                    cleanDiff = cleanDiff.replace(/Change type: \w+/g, '');
-                    cleanDiff = cleanDiff.replace(/File: .*$/gm, '');
-
-                    // Ensure it starts with diff --git
-                    if (!cleanDiff.startsWith('diff --git')) {
-                        cleanDiff = `diff --git a/${file.path} b/${file.path}\n${cleanDiff}`;
-                    }
-
-                    stream.markdown('```diff\n');
-                    stream.markdown(cleanDiff.trim());
-                    stream.markdown('\n```\n\n');
-                    console.log(`✅ Displayed diff for ${file.path}`);
-                } else {
-                    // Enhanced fallback info when no diff content available
-                    console.log(`❌ No diff content available for ${file.path}`);
-                    stream.markdown(`**File**: \`${file.path}\`\n`);
-                    stream.markdown(`**Change Type**: ${file.changeType}\n`);
-                    stream.markdown(`**Lines Added**: +${file.additions || 0}\n`);
-                    stream.markdown(`**Lines Removed**: -${file.deletions || 0}\n\n`);
-
-                    // Try to show any available information
-                    if (file.sourceCommit && file.targetCommit) {
-                        stream.markdown(`**Commits**: ${file.sourceCommit} → ${file.targetCommit}\n`);
-                    }
-
-                    stream.markdown('```text\n');
-                    stream.markdown('❌ Detailed diff content not available\n');
-                    stream.markdown('This may be due to:\n');
-                    stream.markdown('• Binary file changes\n');
-                    stream.markdown('• Large file modifications\n');
-                    stream.markdown('• API access limitations\n');
-                    stream.markdown('• File permission restrictions\n');
-                    stream.markdown('```\n\n');
-                }
-
-                stream.markdown('---\n\n');
-            });
-        }
-    }
-
-    // Enhanced code review section
-    stream.markdown('## 💬 Code Review Summary\n\n');
-
-    if (data.analysis.codeReview && data.analysis.codeReview.length > 0) {
-        data.analysis.codeReview.forEach(comment => {
-            stream.markdown(`${comment}\n\n`);
+                console.log(`✅ Cached diff for ${file.path}`);
+            } 
         });
-    } else {
-        // Provide structured review template
-        const totalChanges = data.fileChanges ? data.fileChanges.length : 0;
-        const hasChanges = totalChanges > 0;
-
-        stream.markdown(`📁 **${totalChanges} file(s)** modified\n\n`);
-
-        if (hasChanges) {
-            stream.markdown(`➕ **${data.fileChanges.reduce((sum, f) => sum + f.additions, 0)} lines** added\n\n`);
-            stream.markdown(`➖ **${data.fileChanges.reduce((sum, f) => sum + f.deletions, 0)} lines** removed\n\n`);
-        }
-
-        stream.markdown(`📊 **Complexity**: ${data.analysis.quality.includes('simple') ? 'Simple' : 'Moderate'}\n\n`);
-        stream.markdown(`🎯 **Impact**: ${data.analysis.performance.includes('High') ? 'High' : 'Medium'}\n\n`);
-        stream.markdown(`🔍 Click "Show Diff in Editor" to view detailed changes\n\n`);
     }
 
-    stream.markdown('---\n\n');
+    // View All Diffs button
+    if (global.prDiffCache) {
+        const prDiffIds = Object.keys(global.prDiffCache).filter(id => id.startsWith(`pr${data.id}_`));
+        if (prDiffIds.length > 0) {
+            stream.markdown('\n');
+            stream.button({
+                command: 'aiSelfCheck.viewAllPrDiffs',
+                title: `📊 View All Diffs (${prDiffIds.length} files)`,
+                arguments: [data.id]
+            });
+            stream.markdown('\n');
+        }
+    }
+
+    stream.markdown('\n---\n\n');
 }
 
 /**

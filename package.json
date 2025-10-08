@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.17",
+  "version": "1.0.19",
   "publisher": "trongld232",
   "icon": "icons/extension-icon.png",
   "author": {
@@ -34,6 +34,9 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "enabledApiProposals": [
+    "languageModelSystem"
+  ],
   "categories": [
     "Other",
     "Machine Learning",
@@ -122,10 +125,22 @@
           "description": "Default Azure DevOps project name",
           "scope": "application"
         },
-        "aiSelfCheck.openai.apiKey": {
+        "aiSelfCheck.ai.apiKey": {
           "type": "string",
           "default": "",
-          "description": "OpenAI API Key for AI-powered code analysis (get from https://platform.openai.com/api-keys)",
+          "description": "AI API Key for AI-powered code analysis (OpenAI, Claude, or custom AI service)",
+          "scope": "application"
+        },
+        "aiSelfCheck.ai.apiHost": {
+          "type": "string",
+          "default": "https://api.openai.com",
+          "description": "AI API Host URL (OpenAI: https://api.openai.com, Claude: https://api.anthropic.com, or custom host)",
+          "scope": "application"
+        },
+        "aiSelfCheck.ai.model": {
+          "type": "string",
+          "default": "GPT-5",
+          "description": "AI Model to use for code analysis (gpt-4, gpt-5, claude-3-sonnet, or custom model)",
           "scope": "application"
         }
       }
@@ -148,6 +163,18 @@
         "name": "review-pr",
         "description": "🔍 Review Azure DevOps Pull Request by PR ID or URL",
         "isSticky": true
+      },
+      {
+        "id": "scan-app",
+        "name": "scan-app",
+        "description": "🤖 AI-powered code scanning and duplicate detection with GPT-5",
+        "isSticky": true
+      },
+      {
+        "id": "create-app",
+        "name": "create-app",
+        "description": "Generate React apps from wireframes",
+        "isSticky": true
       }
     ]
   },
@@ -160,6 +187,8 @@
     "@vscode/vsce": "^2.19.0"
   },
   "dependencies": {
-    "diff": "^8.0.2"
+    "diff": "^8.0.2",
+    "node-fetch": "^2.7.0",
+    "sharp": "^0.34.4"
   }
 }

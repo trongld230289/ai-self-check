@@ -4,6 +4,15 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { executeAIReview, getReviewTemplate, displayReviewHeader, getUnifiedModel, getChecklistStatusIcon } = require('./review-common');
 
+// Import handleEnterTwiceLogic from extension.js
+let handleEnterTwiceLogic;
+try {
+    const extensionModule = require('../extension');
+    handleEnterTwiceLogic = extensionModule.handleEnterTwiceLogic;
+} catch (error) {
+    console.log('⚠️ Could not import handleEnterTwiceLogic from extension.js');
+}
+
 /**
  * Initialize review-changes functionality
  * @param {vscode.ExtensionContext} context
@@ -33,11 +42,25 @@ function initializeReviewChanges(context) {
                 // Check if there's an active file to review
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    // Use shared "Enter twice" logic - will be passed as parameter
-                    // For now, skip the enter twice logic in module to avoid circular dependency
-                    // Direct call to aiReviewChanges
-                    await aiReviewChanges(activeEditor.document.fileName, stream, null, context, request);
-                    return;
+                    // Use shared "Enter twice" logic for confirmation
+                    if (handleEnterTwiceLogic) {
+                        const shouldContinue = await handleEnterTwiceLogic(
+                            'review-changes', 
+                            activeEditor, 
+                            stream, 
+                            async () => {
+                                await aiReviewChanges(activeEditor.document.fileName, stream, null, context, request);
+                            }
+                        );
+                        
+                        // If handleEnterTwiceLogic returns true, it handled everything (second enter)
+                        // If it returns false, it's showing the confirmation dialog (first enter)
+                        return;
+                    } else {
+                        // Fallback: Direct call to aiReviewChanges if handleEnterTwiceLogic is not available
+                        await aiReviewChanges(activeEditor.document.fileName, stream, null, context, request);
+                        return;
+                    }
                 } else {
                     stream.markdown('# 🔍 Code Review Assistant\n\n');
                     stream.markdown('Please provide a file path or open a file to review.\n\n');
@@ -205,12 +228,28 @@ async function handleNoChangesScenario(stream, selectedModel, context, message) 
     // Offer to review active file instead
     const activeEditor = vscode.window.activeTextEditor;
     if (activeEditor) {
+        const fileName = path.basename(activeEditor.document.fileName);
         stream.markdown(`💡 **Would you like to review the active file?**\n`);
-        stream.markdown(`📂 **Current file:** \`${path.basename(activeEditor.document.fileName)}\`\n\n`);
+        stream.markdown(`📂 **Current file:** \`${fileName}\`\n\n`);
         
-        // Auto-review active file - will import from review-file.js
-        const { handleActiveFileReview } = require('./review-file');
-        await handleActiveFileReview(stream, selectedModel, context);
+        // Create button for confirming file review
+        stream.button({
+            command: 'aiSelfCheck.confirmFileReview',
+            title: `✅ Yes, review file ${fileName}`,
+            arguments: [activeEditor.document.fileName]
+        });
+        
+        stream.markdown('\n');
+        
+        stream.button({
+            command: 'aiSelfCheck.showFileHelp',
+            title: '❌ No, show help instead',
+            arguments: []
+        });
+        
+        stream.markdown('\n\n');
+        stream.markdown(`**Question:** Do you want to review the file \`${fileName}\`?\n\n`);
+        stream.markdown('💡 **Tip:** You can also type `@review-file` to review the active file\n');
     } else {
         stream.markdown('💡 **Tips to get started:**\n');
         stream.markdown('- Make some code changes and try again\n');

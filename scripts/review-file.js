@@ -3,6 +3,15 @@ const fs = require('fs');
 const path = require('path');
 const { executeAIReview, getReviewTemplate, displayReviewHeader, getUnifiedModel, getLanguageFromExtension } = require('./review-common');
 
+// Import handleEnterTwiceLogic from extension.js
+let handleEnterTwiceLogic;
+try {
+    const extensionModule = require('../extension');
+    handleEnterTwiceLogic = extensionModule.handleEnterTwiceLogic;
+} catch (error) {
+    console.log('⚠️ Could not import handleEnterTwiceLogic from extension.js');
+}
+
 /**
  * Initialize review-file functionality
  * @param {vscode.ExtensionContext} context
@@ -32,11 +41,25 @@ function initializeReviewFile(context) {
                 // Check if there's an active file to review
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    // Use shared "Enter twice" logic - will be passed as parameter
-                    // For now, skip the enter twice logic in module to avoid circular dependency
-                    // Direct call to aiReviewFile
-                    await aiReviewFile(activeEditor.document.fileName, stream, null, context);
-                    return;
+                    // Use shared "Enter twice" logic for confirmation
+                    if (handleEnterTwiceLogic) {
+                        const shouldContinue = await handleEnterTwiceLogic(
+                            'review-file', 
+                            activeEditor, 
+                            stream, 
+                            async () => {
+                                await aiReviewFile(activeEditor.document.fileName, stream, null, context);
+                            }
+                        );
+                        
+                        // If handleEnterTwiceLogic returns true, it handled everything (second enter)
+                        // If it returns false, it's showing the confirmation dialog (first enter)
+                        return;
+                    } else {
+                        // Fallback: Direct call to aiReviewFile if handleEnterTwiceLogic is not available
+                        await aiReviewFile(activeEditor.document.fileName, stream, null, context);
+                        return;
+                    }
                 } else {
                     stream.markdown('# 📁 File Review Assistant\n\n');
                     stream.markdown('Please provide a file path or open a file to review.\n\n');
