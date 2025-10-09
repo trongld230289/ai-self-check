@@ -2,6 +2,13 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.20] - 2025-10-09
+
+### 🔧 Free VS Code Compatibility
+- **FIXED**: Removed `languageModelSystem` API dependency for free VS Code users
+- **IMPROVED**: Extension now works without GitHub Copilot license
+- **ENHANCED**: Better compatibility across all VS Code installations
+
 ## [1.0.19] - 2025-10-08
 
 ### 🔧 AI Provider Enhancement

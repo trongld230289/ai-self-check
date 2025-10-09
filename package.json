@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "publisher": "trongld232",
   "icon": "icons/extension-icon.png",
   "author": {
@@ -34,9 +34,6 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "enabledApiProposals": [
-    "languageModelSystem"
-  ],
   "categories": [
     "Other",
     "Machine Learning",

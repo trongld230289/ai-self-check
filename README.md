@@ -1,12 +1,13 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.17-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.20-blue.svg)](https://github.com/trongld230289/ai-self-check)
 
 ## 📋 Latest Updates
 
-### v1.0.17 (Current)
-- ✨ **New Features**: Updated extension version to 1.0.17 with latest improvements
-- 🔧 **Version Update**: Bumped version to 1.0.17
+### v1.0.20 (Current)
+- ✨ **Free VS Code Support**: Works without GitHub Copilot license
+- 🔧 **Compatibility Fix**: Removed languageModelSystem API dependency
+- 🚀 **Enhanced Access**: Now available for all VS Code users
 
 ### v1.0.16
 - 📊 **Improved Review Templates**: Enhanced consistency across all review templates with strict mode and line number traceability
