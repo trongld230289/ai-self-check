@@ -1,12 +1,19 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.20-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.21-blue.svg)](https://github.com/trongld230289/ai-self-check)
 
 ## 📋 Latest Updates
 
-### v1.0.20 (Current)
+### v1.0.21 (Current)
+- 🔧 **File Review API Key Support**: Fixed `@review-file` to work with API key mode
+- 🛡️ **Infinite Loop Protection**: Complete protection for users without GitHub Copilot
+- 📊 **Enhanced Compatibility**: Both `@review-file` and `@review-changes` now work seamlessly with API keys
+- 🚀 **Improved Error Handling**: Better guidance when AI models are unavailable
+
+### v1.0.20
 - ✨ **Free VS Code Support**: Works without GitHub Copilot license
-- 🔧 **Compatibility Fix**: Removed languageModelSystem API dependency
+- � **API Key Mode**: Use your own AI API key (OpenAI, Claude, Gemini, etc.)
+- 🔧 **Smart Fallback**: Automatically switches between API key and Copilot
 - 🚀 **Enhanced Access**: Now available for all VS Code users
 
 ### v1.0.16
@@ -87,6 +94,28 @@ AI-powered code review extension with intelligent chat participants for automate
 - **Swift**: `.swift`
 
 ## 🔧 Configuration
+
+### 🔑 API Key Mode (For Users Without Copilot License)
+
+If you don't have GitHub Copilot but want to use your own AI API key:
+
+1. **Configure API Settings** (in VS Code Settings or `settings.json`):
+```json
+{
+  "aiSelfCheck.useApiKeyInsteadOfCopilot": true,
+  "aiSelfCheck.ai.apiKey": "your-api-key-here",
+  "aiSelfCheck.ai.apiHost": "https://api.openai.com",
+  "aiSelfCheck.ai.model": "gpt-4o"
+}
+```
+
+2. **Supported Providers**:
+   - **OpenAI**: `https://api.openai.com` with models like `gpt-4o`, `gpt-4-turbo`
+   - **Anthropic**: `https://api.anthropic.com` with models like `claude-3-sonnet`, `claude-3-opus`
+   - **Google**: `https://googleapis.com` with models like `gemini-2.5-pro`, `gemini-2.0-flash`
+   - **Custom APIs**: Any OpenAI-compatible API endpoint
+
+3. **Smart Fallback**: If API key fails, automatically falls back to Copilot (if available)
 
 ### 🎨 Template Customization
 When you run the extension for the first time, it automatically generates default templates in:

@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const { showTokenStatistics, estimateTokenCount } = require('./review-common');
+const { showTokenStatistics, estimateTokenCount, callAI, normalizeApiParameters, detectProvider, mapProviderResponse } = require('./review-common');
 
 // Add fetch polyfill for older Node.js versions
 if (!global.fetch) {
@@ -165,17 +165,19 @@ Generated comprehensive API analysis with business domain classification, duplic
 
         const mockModel = { family: aiModel || 'gpt-4o' };
         
-        // Calculate actual cost based on real token usage
+        // Calculate actual cost based on real token usage with provider detection
+        const config = vscode.workspace.getConfiguration('aiSelfCheck');
+        const apiHost = config.get('ai.apiHost') || 'https://api.openai.com';
         const { estimateCost } = require('./review-common');
-        const costBreakdown = estimateCost(totalInputTokens, totalOutputTokens, aiModel || 'gpt-4o');
+        const costBreakdown = estimateCost(totalInputTokens, totalOutputTokens, aiModel || 'gpt-4o', null, apiHost);
         
         stream.markdown(`\n\n---\n\n`);
         stream.markdown(`📊 **Token Usage Summary:**\n`);
-        stream.markdown(`- **Input tokens**: ${totalInputTokens.toLocaleString()} ($${costBreakdown.pricing.input.toFixed(2)}/1M)\n`);
-        stream.markdown(`- **Output tokens**: ${totalOutputTokens.toLocaleString()} ($${costBreakdown.pricing.output.toFixed(2)}/1M tokens)\n`);
+        stream.markdown(`- **Input tokens**: ${totalInputTokens.toLocaleString()} ($${costBreakdown.inputRate.toFixed(2)}/1M)\n`);
+        stream.markdown(`- **Output tokens**: ${totalOutputTokens.toLocaleString()} ($${costBreakdown.outputRate.toFixed(2)}/1M tokens)\n`);
         stream.markdown(`- **Total tokens**: ${(totalInputTokens + totalOutputTokens).toLocaleString()}\n`);
         stream.markdown(`- **Estimated cost**: $${costBreakdown.totalCost.toFixed(4)} (Input: $${costBreakdown.inputCost.toFixed(4)} | Output: $${costBreakdown.outputCost.toFixed(4)})\n`);
-        stream.markdown(`- **Model used**: ${aiModel || 'gpt-4o'}\n\n`);
+        stream.markdown(`- **Model used**: ${aiModel || 'gpt-4o'}${costBreakdown.provider ? ` (${costBreakdown.provider})` : ''}\n\n`);
         stream.markdown(`✅ **API Pattern Analysis complete** - successfully analyzed ${apiEndpoints.length} endpoints\n\n`);
     }
 }
@@ -328,13 +330,12 @@ async function extractAllApiEndpoints(apiFiles, stream) {
             const fileEndpoints = extractionResult.endpoints || extractionResult;
             
             // Track tokens if AI was used
-            if (extractionResult.inputTokens) {
+            if (extractionResult.inputTokens && extractionResult.inputTokens > 0) {
                 totalInputTokens += extractionResult.inputTokens;
                 totalOutputTokens += extractionResult.outputTokens;
                 if (extractionResult.model) aiModel = extractionResult.model;
                 aiUsed++;
-            } else if (fileEndpoints.some && fileEndpoints.some(ep => ep.type?.includes('ai'))) {
-                aiUsed++;
+                console.log(`✅ AI used for ${file.name}: ${extractionResult.inputTokens}+${extractionResult.outputTokens} tokens`);
             }
             
             endpoints.push(...fileEndpoints);
@@ -447,7 +448,30 @@ ${content}
 async function callAIForExtraction(prompt) {
     const systemPrompt = 'You are an expert code analyzer specialized in extracting HTTP API endpoints from source code. You understand various patterns: baseUrl concatenation, template literals, string interpolation, and can infer endpoints from method names and context.';
     
-    return await callAI(systemPrompt, prompt);
+    const result = await callAI(systemPrompt, prompt);
+    
+    // Map the response using provider-specific mapping
+    const provider = detectProvider(result.apiHost, result.model);
+    const mappedResponse = mapProviderResponse(result.rawResponse, provider);
+    
+    // Parse JSON response
+    let parsedResponse;
+    try {
+        parsedResponse = typeof mappedResponse.content === 'string' 
+            ? JSON.parse(mappedResponse.content) 
+            : mappedResponse.content;
+    } catch (parseError) {
+        console.warn('⚠️ Failed to parse AI response as JSON:', parseError);
+        parsedResponse = { endpoints: [] };
+    }
+    
+    // Return in the expected format
+    return {
+        response: parsedResponse,
+        inputTokens: mappedResponse.inputTokens,
+        outputTokens: mappedResponse.outputTokens,
+        model: result.model
+    };
 }
 
 /**
@@ -970,218 +994,7 @@ function extractMethodName(lines, startIndex) {
     return 'unknown';
 }
 
-/**
- * 🔧 Normalize API parameters based on provider/model
- */
-function normalizeApiParameters(model, apiHost, options) {
-    const normalized = { ...options };
-    
-    // Detect provider from API host or model name
-    const provider = detectProvider(apiHost, model);
-    
-    switch (provider) {
-        case 'openai':
-            // OpenAI uses max_tokens
-            if (options.max_completion_tokens) {
-                normalized.max_tokens = options.max_completion_tokens;
-                delete normalized.max_completion_tokens;
-            }
-            break;
-            
-        case 'anthropic':
-            // Anthropic uses max_tokens but different structure
-            if (options.max_tokens) {
-                normalized.max_tokens = options.max_tokens;
-            }
-            // Remove OpenAI-specific parameters
-            delete normalized.response_format;
-            break;
-            
-        case 'google':
-            // Google PaLM/Gemini uses different parameter names
-            if (options.max_tokens) {
-                normalized.max_output_tokens = options.max_tokens;
-                delete normalized.max_tokens;
-            }
-            if (options.max_completion_tokens) {
-                normalized.max_output_tokens = options.max_completion_tokens;
-                delete normalized.max_completion_tokens;
-            }
-            break;
-            
-        case 'cohere':
-            // Cohere uses max_generation_length
-            if (options.max_tokens) {
-                normalized.max_generation_length = options.max_tokens;
-                delete normalized.max_tokens;
-            }
-            if (options.max_completion_tokens) {
-                normalized.max_generation_length = options.max_completion_tokens;
-                delete normalized.max_completion_tokens;
-            }
-            break;
-            
-        case 'stu':
-            // STU Platform - similar to Azure but with special handling
-            if (options.max_tokens) {
-                normalized.max_completion_tokens = options.max_tokens;
-                delete normalized.max_tokens;
-            }
-            if (options.max_completion_tokens) {
-                normalized.max_completion_tokens = options.max_completion_tokens;
-            }
-            // Remove temperature for GPT-5 models that don't support it
-            if (model.includes('gpt-5') || model.toLowerCase().includes('gpt-5')) {
-                delete normalized.temperature;
-            }
-            break;
-            
-        case 'azure':
-            // Azure OpenAI uses max_completion_tokens for most models
-            if (options.max_tokens) {
-                // Azure prefers max_completion_tokens for all GPT models
-                normalized.max_completion_tokens = options.max_tokens;
-                delete normalized.max_tokens;
-            }
-            if (options.max_completion_tokens) {
-                // Keep it if already set
-                normalized.max_completion_tokens = options.max_completion_tokens;
-            }
-            break;
-            
-        case 'huggingface':
-            // HuggingFace uses max_new_tokens
-            if (options.max_tokens) {
-                normalized.max_new_tokens = options.max_tokens;
-                delete normalized.max_tokens;
-            }
-            if (options.max_completion_tokens) {
-                normalized.max_new_tokens = options.max_completion_tokens;
-                delete normalized.max_completion_tokens;
-            }
-            break;
-            
-        case 'ollama':
-            // Ollama uses num_predict
-            if (options.max_tokens) {
-                normalized.num_predict = options.max_tokens;
-                delete normalized.max_tokens;
-            }
-            if (options.max_completion_tokens) {
-                normalized.num_predict = options.max_completion_tokens;
-                delete normalized.max_completion_tokens;
-            }
-            // Remove OpenAI-specific parameters
-            delete normalized.response_format;
-            break;
-            
-        case 'custom':
-        default:
-            // For custom providers, try to detect based on model name
-            if (model.includes('claude')) {
-                // Likely Anthropic-compatible
-                delete normalized.response_format;
-            } else if (model.includes('gemini') || model.includes('palm')) {
-                // Likely Google-compatible
-                if (options.max_tokens) {
-                    normalized.max_output_tokens = options.max_tokens;
-                    delete normalized.max_tokens;
-                }
-            }
-            break;
-    }
-    
-    return normalized;
-}
-
-/**
- * 🔍 Detect AI provider from API host and model
- */
-function detectProvider(apiHost, model) {
-    const host = apiHost.toLowerCase();
-    const modelLower = model.toLowerCase();
-    
-    // Check by API host
-    if (host.includes('openai.com')) return 'openai';
-    if (host.includes('anthropic.com')) return 'anthropic';
-    if (host.includes('googleapis.com') || host.includes('google.com')) return 'google';
-    if (host.includes('cohere.ai') || host.includes('cohere.com')) return 'cohere';
-    if (host.includes('aiportalapi.stu-platform.live')) return 'stu';
-    if (host.includes('azure.com') || host.includes('openai.azure.com')) return 'azure';
-    if (host.includes('huggingface.co')) return 'huggingface';
-    if (host.includes('ollama') || host.includes('localhost:11434')) return 'ollama';
-    
-    // Check by model name
-    if (modelLower.includes('gpt') || modelLower.includes('davinci') || modelLower.includes('curie')) return 'openai';
-    if (modelLower.includes('claude')) return 'anthropic';
-    if (modelLower.includes('gemini') || modelLower.includes('palm') || modelLower.includes('bison')) return 'google';
-    if (modelLower.includes('command') || modelLower.includes('cohere')) return 'cohere';
-    if (modelLower.includes('llama') || modelLower.includes('mistral') || modelLower.includes('codellama')) return 'ollama';
-    
-    return 'custom';
-}
-
-/**
- * 🤖 Reusable AI API call function
- */
-async function callAI(systemPrompt, userPrompt, options = {}) {
-    const config = vscode.workspace.getConfiguration('aiSelfCheck');
-    const apiKey = config.get('ai.apiKey');
-    const apiHost = config.get('ai.apiHost') || 'https://api.openai.com/v1/chat/completions';
-    const model = config.get('ai.model') || 'gpt-4o';
-    
-    if (!apiKey) {
-        throw new Error('AI API key not configured');
-    }
-    
-    const defaultOptions = {
-        temperature: 0.1,
-        max_tokens: 4000,
-        response_format: { type: "json_object" },
-        ...options
-    };
-    
-    // Normalize API parameters based on provider/model
-    const normalizedOptions = normalizeApiParameters(model, apiHost, defaultOptions);
-    
-    const response = await fetch(`${apiHost}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'User-Agent': 'VS Code AI Self Check Extension'
-        },
-        body: JSON.stringify({
-            model: model,
-            messages: [
-                {
-                    role: 'system',
-                    content: systemPrompt
-                },
-                {
-                    role: 'user',
-                    content: userPrompt
-                }
-            ],
-            ...normalizedOptions
-        })
-    });
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`AI API error: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    const parsedResponse = JSON.parse(data.choices[0].message.content);
-    
-    return {
-        response: parsedResponse,
-        inputTokens: data.usage?.prompt_tokens || 0,
-        outputTokens: data.usage?.completion_tokens || 0,
-        model: model
-    };
-}
+// AI functions moved to review-common.js for reusability
 
 /**
  * 🤖 AI-Powered Smart Analysis using OpenAI
@@ -1292,11 +1105,16 @@ ${JSON.stringify(endpoints, null, 2)}
         const systemPrompt = 'You are a world-class software architect and code quality expert with 15+ years of experience in API design, microservices architecture, and code refactoring. You specialize in identifying semantic duplicates, architectural anti-patterns, and providing actionable improvement suggestions.';
         
         const result = await callAI(systemPrompt, instruction);
-        const aiAnalysis = result.response;
+        
+        // Map the response using provider-specific mapping
+        const provider = detectProvider(result.apiHost, result.model);
+        const mappedResponse = mapProviderResponse(result.rawResponse, provider);
+        
+        const aiAnalysis = mappedResponse.content;
         
         console.log(`✅ AI API (${result.model}) analysis completed successfully`);
-        console.log(`📊 Token usage: ${(result.inputTokens + result.outputTokens) || 'unknown'} tokens`);
-        console.log(`🌐 API Host: ${apiHost}`);
+        console.log(`📊 Token usage: ${(mappedResponse.inputTokens + mappedResponse.outputTokens) || 'unknown'} tokens`);
+        console.log(`🌐 API Host: ${result.apiHost}`);
         
         return {
             analysis: aiAnalysis,

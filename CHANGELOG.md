@@ -2,11 +2,31 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.21] - 2025-10-09
+
+### 🔧 File Review API Key Support & Infinite Loop Protection
+- **FIXED**: `@review-file` now works with API key mode (was only using basic analysis)
+- **ENHANCED**: All file review functions now properly receive request parameter for AI detection
+- **ADDED**: Complete protection against infinite loops when GitHub Copilot is unavailable
+- **IMPROVED**: Better error handling with graceful fallback to API key mode suggestions
+- **STRENGTHENED**: All `vscode.lm.selectChatModels()` calls now protected by `shouldUseApiKey()` checks
+- **UPDATED**: Function signatures to properly support both Copilot and API key modes
+
+### 🛡️ Copilot-Less User Protection
+- **PROTECTED**: `getUnifiedModel()`, `getFallbackModel()`, `getAvailableModels()` functions
+- **ADDED**: Early API key detection to skip Copilot model selection when not needed
+- **ENHANCED**: Clear user guidance when no AI models are available
+- **FIXED**: Extension works seamlessly for users without GitHub Copilot license
+
 ## [1.0.20] - 2025-10-09
 
-### 🔧 Free VS Code Compatibility
+### 🔧 Free VS Code Compatibility & API Key Support
 - **FIXED**: Removed `languageModelSystem` API dependency for free VS Code users
-- **IMPROVED**: Extension now works without GitHub Copilot license
+- **NEW**: Added API key support for users without GitHub Copilot license
+- **FEATURE**: New setting `useApiKeyInsteadOfCopilot` to enable API key mode
+- **ENHANCED**: Works with OpenAI, Claude, Gemini, and custom AI APIs
+- **IMPROVED**: Smart fallback from API key to Copilot and vice versa
+- **ADDED**: Parameter normalization for different AI providers (OpenAI, Anthropic, Google)
 - **ENHANCED**: Better compatibility across all VS Code installations
 
 ## [1.0.19] - 2025-10-08

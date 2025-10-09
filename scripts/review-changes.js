@@ -343,7 +343,7 @@ async function reviewChanges(diffContent, stream, changeType, selectedModel = nu
     }
     
     // Simple, safe approach - just display the template with diff
-    stream.markdown('# 📋 Code Review Starts\n\n');
+    stream.markdown('# 📋 Start Code Review\n\n');
     
     try {
         // Use unified model detection (same as review-file)

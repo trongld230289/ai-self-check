@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "publisher": "trongld232",
   "icon": "icons/extension-icon.png",
   "author": {
@@ -138,6 +138,12 @@
           "type": "string",
           "default": "GPT-5",
           "description": "AI Model to use for code analysis (gpt-4, gpt-5, claude-3-sonnet, or custom model)",
+          "scope": "application"
+        },
+        "aiSelfCheck.useApiKeyInsteadOfCopilot": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use your own AI API key instead of GitHub Copilot for code review (useful for users without Copilot license)",
           "scope": "application"
         }
       }

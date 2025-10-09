@@ -48,7 +48,7 @@ function initializeReviewFile(context) {
                             activeEditor, 
                             stream, 
                             async () => {
-                                await aiReviewFile(activeEditor.document.fileName, stream, null, context);
+                                await aiReviewFile(activeEditor.document.fileName, stream, request.model, context, request);
                             }
                         );
                         
@@ -57,7 +57,7 @@ function initializeReviewFile(context) {
                         return;
                     } else {
                         // Fallback: Direct call to aiReviewFile if handleEnterTwiceLogic is not available
-                        await aiReviewFile(activeEditor.document.fileName, stream, null, context);
+                        await aiReviewFile(activeEditor.document.fileName, stream, request.model, context, request);
                         return;
                     }
                 } else {
@@ -71,7 +71,7 @@ function initializeReviewFile(context) {
             }
             
             // Use unified AI review file function
-            await aiReviewFile(input, stream, null, context);
+            await aiReviewFile(input, stream, request.model, context, request);
             
         } catch (error) {
             stream.markdown(`❌ Error: ${error.message}\n\n`);
@@ -94,7 +94,7 @@ function initializeReviewFile(context) {
 }
 
 // UNIFIED AI REVIEW FILE FUNCTION
-async function aiReviewFile(input, stream, selectedModel = null, context = null) {
+async function aiReviewFile(input, stream, selectedModel = null, context = null, request = null) {
     try {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -117,7 +117,7 @@ async function aiReviewFile(input, stream, selectedModel = null, context = null)
         }
 
         // Perform file content review
-        await reviewFile(targetInfo.filePath, stream, selectedModel, context);
+        await reviewFile(targetInfo.filePath, stream, selectedModel, context, request);
 
     } catch (error) {
         stream.markdown(`❌ **Review process failed:** ${error.message}\n\n`);
@@ -179,7 +179,7 @@ function getTargetFileInfoForReview(input) {
     };
 }
 
-async function handleActiveFileReview(stream, requestedModel = null, context = null) {
+async function handleActiveFileReview(stream, requestedModel = null, context = null, request = null) {
     try {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
@@ -214,7 +214,7 @@ async function handleActiveFileReview(stream, requestedModel = null, context = n
             }
         } else {
             // For full file review, use consistent file review function
-            await reviewFile(document.fileName, stream, requestedModel, context);
+            await reviewFile(document.fileName, stream, requestedModel, context, request);
         }
         
     } catch (error) {
@@ -262,49 +262,8 @@ async function analyzeCodeSection(code, language, stream, requestedModel = null,
             analyzeTypeScriptCode(code, stream);
         }
         
-        // AI Analysis if model is available
-        if (requestedModel && typeof requestedModel === 'object' && requestedModel.sendRequest) {
-            try {
-                stream.markdown('\n## 🔄 AI Analysis (Live Stream)\n\n');
-                stream.markdown(`**Model:** \`${requestedModel.family}\` | **Language:** \`${language}\`\n\n`);
-                stream.markdown('⏳ **Connecting to AI model...**\n\n');
-                
-                const aiPrompt = `Please analyze this ${language} code following the review-file.md template format:
-
-\`\`\`${language}
-${code}
-\`\`\`
-
-Follow the template structure for comprehensive analysis.`;
-
-                const messages = [vscode.LanguageModelChatMessage.User(aiPrompt)];
-                
-                stream.markdown('🚀 **Starting analysis stream...**\n\n');
-                const response = await requestedModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
-                
-                stream.markdown('---\n\n');
-                
-                let fragmentCount = 0;
-                let isFirstFragment = true;
-                for await (const fragment of response.text) {
-                    if (isFirstFragment) {
-                        stream.markdown('📡 **Streaming live analysis...**\n\n');
-                        isFirstFragment = false;
-                    }
-                    stream.markdown(fragment);
-                    fragmentCount++;
-                }
-                
-                stream.markdown(`\n\n✅ **Analysis complete** (${fragmentCount} fragments streamed)\n\n`);
-                
-            } catch (aiError) {
-                stream.markdown(`❌ **Streaming failed:** ${aiError.message}\n\n`);
-                stream.markdown('🔄 **Retrying with basic analysis...**\n\n');
-                console.error('AI streaming error:', aiError);
-            }
-        } else {
-            stream.markdown('\n💡 **For detailed review:** Use AI code review tools or manual inspection\n');
-        }
+        // Skip AI analysis for this quick preview function - it's handled by the main review function below
+        stream.markdown('\n� **For detailed AI review:** Use the main review function with unified model support\n');
         
     } catch (error) {
         stream.markdown(`⚠️ **Analysis error:** ${error.message}\n`);
@@ -337,7 +296,7 @@ function analyzeTypeScriptCode(code, stream) {
     }
 }
 
-async function reviewFile(filePath, stream, requestedModel = null, context = null) {
+async function reviewFile(filePath, stream, requestedModel = null, context = null, request = null) {
     try {
         const content = fs.readFileSync(filePath, 'utf8');
         const fileExtension = path.extname(filePath);
@@ -400,7 +359,7 @@ Provide comprehensive analysis with specific examples and actionable recommendat
             }
 
             // Use unified model detection
-            const model = await getUnifiedModel(stream, requestedModel, context);
+            const model = await getUnifiedModel(stream, requestedModel, context, request);
             
             if (model) {
                 // Animated loading
