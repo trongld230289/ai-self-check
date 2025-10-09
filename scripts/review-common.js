@@ -1286,6 +1286,14 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
     let models = [];
     
     console.log('=== getUnifiedModel DEBUG START ===');
+    
+    // PRIORITY 0: Check if API key mode is enabled - if so, skip ALL Copilot model detection
+    if (shouldUseApiKey()) {
+        console.log('🔑 API Key mode enabled - skipping ALL Copilot model detection');
+        console.log('=== getUnifiedModel DEBUG END (API KEY MODE) ===');
+        return null; // Let API key mode handle the AI calls
+    }
+    
     console.log('🔍 Full request object:', JSON.stringify(request, null, 2));
     console.log('🔍 Request keys:', request ? Object.keys(request) : 'null');
     console.log('🔍 Request.model:', request?.model);
@@ -1366,12 +1374,6 @@ async function getUnifiedModel(stream, requestedModel = null, chatContext = null
     
     // Get available models and try to find the currently selected one
     try {
-        // Check if user has API key configured - if so, skip Copilot model detection
-        if (shouldUseApiKey()) {
-            console.log('🔑 API Key mode enabled - skipping Copilot model detection');
-            return null; // Let API key mode handle the AI calls
-        }
-        
         models = await vscode.lm.selectChatModels();
         console.log('📋 All available models:', models.map(m => `${m.family || m.id} (${m.vendor || 'Unknown'})`));
         

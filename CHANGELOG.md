@@ -2,6 +2,21 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.22] - 2025-10-09
+
+### 🔧 Critical API Key Priority Fix
+- **FIXED**: Moved `shouldUseApiKey()` check to PRIORITY 0 (first check) in `getUnifiedModel()`
+- **RESOLVED**: Continuous checking errors when API key mode is enabled
+- **ELIMINATED**: `workbench.desktop.main.js:sourcemap:34` repeated error messages
+- **IMPROVED**: Clean separation between API key mode and Copilot mode
+- **ENHANCED**: Early return prevents ALL unnecessary Copilot model detection calls
+
+### 🛡️ User Experience Improvements
+- **SMOOTHER**: No more VS Code performance issues for API key users
+- **CLEANER**: Reduced console logging noise when API key mode is active
+- **FASTER**: Immediate AI detection without redundant model checks
+- **STABLE**: Extension works reliably for users without GitHub Copilot license
+
 ## [1.0.21] - 2025-10-09
 
 ### 🔧 File Review API Key Support & Infinite Loop Protection

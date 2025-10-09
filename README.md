@@ -1,10 +1,16 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.21-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.22-blue.svg)](https://github.com/trongld230289/ai-self-check)
 
 ## 📋 Latest Updates
 
-### v1.0.21 (Current)
+### v1.0.22 (Current)
+- 🔧 **Critical Priority Fix**: Moved API key check to PRIORITY 0 in getUnifiedModel()
+- 🛡️ **Eliminated Errors**: No more continuous checking and workbench.desktop.main.js errors
+- ⚡ **Performance**: Immediate AI detection without redundant Copilot model checks
+- 🚀 **Stability**: Clean separation between API key mode and Copilot mode
+
+### v1.0.21
 - 🔧 **File Review API Key Support**: Fixed `@review-file` to work with API key mode
 - 🛡️ **Infinite Loop Protection**: Complete protection for users without GitHub Copilot
 - 📊 **Enhanced Compatibility**: Both `@review-file` and `@review-changes` now work seamlessly with API keys
