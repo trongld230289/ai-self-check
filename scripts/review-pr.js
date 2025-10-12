@@ -111,13 +111,10 @@ async function handleReviewPr(request, context, stream, token) {
             stream.markdown(`📋 **PR**: #${prId}\n`);
             stream.markdown('⏳ **Fetching from GitHub API...**\n\n');
         } else {
-            stream.markdown('🔍 **Analyzing Azure DevOps PR...**\n\n');
+            stream.markdown('🔍 **Analyzing Azure DevOps** 📋 **PR ID**: ' + prId + '\n\n');
             if (organization && project && repository) {
-                stream.markdown(`🏢 **Organization**: ${organization}\n`);
-                stream.markdown(`📁 **Project**: ${project}\n`);
-                stream.markdown(`📦 **Repository**: ${repository}\n`);
+                stream.markdown(`🏢 **Organization**: ${organization} 📁 **Project**: ${project} 📦 **Repository**: ${repository}\n`);
             }
-            stream.markdown(`📋 **PR ID**: ${prId}\n`);
             stream.markdown('⏳ **Fetching from Azure DevOps API...**\n\n');
         }
 
@@ -136,6 +133,12 @@ async function handleReviewPr(request, context, stream, token) {
             stream.markdown('• PR ID does not exist\n');
             stream.markdown('• Credentials configuration is incorrect\n');
             return;
+        }
+
+        // Display basic PR info after successful fetch
+        const data = prAnalysis.data;
+        if (data) {
+            stream.markdown(`📝 **Title**: ${data.title} ⭐ **Author**: ${data.author} 🔄 **Status**: ${data.status}\n\n`);
         }
 
         // Display PR review results
@@ -1869,27 +1872,6 @@ async function performQuickReview(stream, prAnalysis) {
  */
 async function displayPrReviewResults(stream, prAnalysis) {
     const data = prAnalysis.data;
-
-    // PR Information
-    stream.markdown('## 📋 Pull Request Information\n\n');
-    stream.markdown(`**ID**: ${data.id}\n`);
-    stream.markdown(`**Title**: ${data.title}\n`);
-    stream.markdown(`**Author**: ${data.author}\n`);
-    stream.markdown(`**Status**: ${data.status}\n`);
-    if (data.organization) {
-        stream.markdown(`**Organization**: ${data.organization}\n`);
-        stream.markdown(`**Project**: ${data.project}\n`);
-        stream.markdown(`**Repository**: ${data.repository}\n`);
-    }
-    if (data.diffCommand) {
-        stream.markdown(`**Diff Source**: ${data.diffCommand}\n`);
-    }
-
-    // NEW: Show commits info
-    if (data.commitsList && data.commitsList.length > 0) {
-        stream.markdown(`**Total Commits**: ${data.totalCommits}\n`);
-    }
-    stream.markdown('\n');
 
     // NEW: Display commits list
     if (data.commitsList && data.commitsList.length > 0) {

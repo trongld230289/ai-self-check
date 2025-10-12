@@ -293,7 +293,7 @@ function activate(context) {
             const panel = vscode.window.createWebviewPanel(
                 'prDiffView',
                 `Diff: ${path.basename(diffData.path)}`,
-                vscode.ViewColumn.Beside,
+                vscode.ViewColumn.One,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -326,7 +326,7 @@ function activate(context) {
             const panel = vscode.window.createWebviewPanel(
                 'prAllDiffsView',
                 `PR #${prId} - All Diffs (${allDiffIds.length} files)`,
-                vscode.ViewColumn.Beside,
+                vscode.ViewColumn.One,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -1599,20 +1599,6 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
         
         body.diff-only-mode .diff-line.removed {
             border-left: 3px solid #f85149;
-        }
-        
-        /* Global fix for line-content formatting */
-        .diff-line .line-content,
-        .diff-context .line-content,
-        .diff-add .line-content,
-        .diff-remove .line-content,
-        .diff-empty .line-content,
-        .diff-hunk .line-content,
-        .diff-unified .line-content {
-            white-space: pre !important;
-            overflow-x: auto !important;
-            word-wrap: normal !important;
-            word-break: normal !important;
         }
         
         /* Minimap styles */
