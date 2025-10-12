@@ -1601,6 +1601,20 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
             border-left: 3px solid #f85149;
         }
         
+        /* Global fix for line-content formatting */
+        .diff-line .line-content,
+        .diff-context .line-content,
+        .diff-add .line-content,
+        .diff-remove .line-content,
+        .diff-empty .line-content,
+        .diff-hunk .line-content,
+        .diff-unified .line-content {
+            white-space: pre !important;
+            overflow-x: auto !important;
+            word-wrap: normal !important;
+            word-break: normal !important;
+        }
+        
         /* Minimap styles */
         .minimap-container {
             position: absolute;

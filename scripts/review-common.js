@@ -1656,8 +1656,16 @@ async function executeApiAnalysisCall(prompt, stream, analysisType = 'API Patter
         // Get AI model
         const model = await getUnifiedModel(stream);
         if (!model) {
-            stream.markdown('❌ **No AI model available** - Please select a model in VS Code\n\n');
-            return null;
+            // Check if this is API key mode before showing error
+            if (shouldUseApiKey()) {
+                // API key mode - try executeAIReview which will handle API key calls
+                console.log('🔑 API key mode enabled for analysis - proceeding with executeAIReview');
+                const success = await executeAIReview(prompt, null, stream, analysisType);
+                return success ? { analysis: 'API key mode analysis completed' } : null;
+            } else {
+                stream.markdown('❌ **No AI model available** - Please select a model in VS Code\n\n');
+                return null;
+            }
         }
         
         console.log(`📤 Starting ${analysisType} with model:`, model.family);

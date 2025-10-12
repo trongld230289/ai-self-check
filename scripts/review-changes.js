@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { executeAIReview, getReviewTemplate, displayReviewHeader, getUnifiedModel, getChecklistStatusIcon } = require('./review-common');
+const { executeAIReview, getReviewTemplate, displayReviewHeader, getUnifiedModel, getChecklistStatusIcon, shouldUseApiKey } = require('./review-common');
 
 // Import handleEnterTwiceLogic from extension.js
 let handleEnterTwiceLogic;
@@ -350,8 +350,14 @@ async function reviewChanges(diffContent, stream, changeType, selectedModel = nu
         const model = await getUnifiedModel(stream, selectedModel, context, request);
         
         if (!model) {
-            stream.markdown('❌ **AI models not available** - falling back to template display\n\n');
-            throw new Error('No AI models available');
+            // Check if this is API key mode before showing error
+            if (shouldUseApiKey()) {
+                // API key mode - executeAIReview will handle it
+                console.log('🔑 API key mode enabled - model is null as expected');
+            } else {
+                stream.markdown('❌ **AI models not available** - falling back to template display\n\n');
+                throw new Error('No AI models available');
+            }
         }
             
         stream.markdown('🔄 **AI Analysis in progress...** (streaming git changes)\n\n');

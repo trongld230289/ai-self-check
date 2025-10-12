@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const { executeAIReview, getReviewTemplate, displayReviewHeader, getUnifiedModel, getLanguageFromExtension } = require('./review-common');
+const { executeAIReview, getReviewTemplate, displayReviewHeader, getUnifiedModel, getLanguageFromExtension, shouldUseApiKey } = require('./review-common');
 
 // Import handleEnterTwiceLogic from extension.js
 let handleEnterTwiceLogic;
@@ -377,7 +377,24 @@ Provide comprehensive analysis with specific examples and actionable recommendat
                     await performBasicFileAnalysis(content, stream, fileExtension);
                 }
             } else {
-                stream.markdown('⚠️ **AI model not available - using basic analysis**\n\n');
+                // Check if API key mode is enabled
+                if (shouldUseApiKey()) {
+                    stream.markdown('🔑 **API Key mode enabled** - Using your configured AI service for file analysis\n\n');
+                    
+                    // Try to use API key mode
+                    try {
+                        const success = await executeAIReview(reviewPrompt, null, stream, 'File');
+                        if (success) {
+                            return; // Successfully completed with API key
+                        }
+                    } catch (apiError) {
+                        stream.markdown(`⚠️ **API key mode failed:** ${apiError.message}\n\n`);
+                        stream.markdown('🔄 **Falling back to basic analysis...**\n\n');
+                    }
+                } else {
+                    stream.markdown('⚠️ **AI model not available - using basic analysis**\n\n');
+                    stream.markdown('💡 **Tip:** Install GitHub Copilot or configure API key mode in settings\n\n');
+                }
                 await performBasicFileAnalysis(content, stream, fileExtension);
             }
             

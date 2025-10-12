@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const path = require('path');
 const https = require('https');
 const { execSync } = require('child_process');
-const { getReviewTemplate, getUnifiedModel, executeAIReview } = require('./review-common');
+const { getReviewTemplate, getUnifiedModel, executeAIReview, shouldUseApiKey } = require('./review-common');
 
 // Global configuration variables
 const isShowSummaryOfChanges = false;
@@ -1446,10 +1446,16 @@ async function performQuickReviewWithAI(stream, prData, request, diffContent) {
         const model = await getUnifiedModel(stream, null, null, request);
 
         if (!model) {
-            stream.markdown('❌ **No AI model available**\n\n');
-            stream.markdown('Using fallback basic analysis instead.\n\n');
-            await performBasicQuickAnalysis(stream, prData);
-            return;
+            // Check if API key mode is enabled
+            if (shouldUseApiKey()) {
+                // API key mode - executeAIReview will handle it
+                console.log('🔑 API key mode enabled for PR review - model is null as expected');
+            } else {
+                stream.markdown('❌ **No AI model available**\n\n');
+                stream.markdown('Using fallback basic analysis instead.\n\n');
+                await performBasicQuickAnalysis(stream, prData);
+                return;
+            }
         }
 
         // Use shared executeAIReview function
