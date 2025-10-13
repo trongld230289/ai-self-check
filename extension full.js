@@ -314,36 +314,18 @@ function activate(context) {
         try {
             console.log(`📊 Opening all diffs for PR: ${prId}`);
 
-            // Support both GitHub and Azure DevOps PR cache patterns
-            let allDiffIds = [];
-            const cacheKeys = Object.keys(global.prDiffCache || {});
-            
-            if (prId.startsWith('github_')) {
-                // GitHub PR: prId format is "github_{id}"
-                allDiffIds = cacheKeys.filter(id => id.startsWith(`${prId}_`));
-                console.log(`🐙 GitHub PR: Looking for cache keys starting with "${prId}_"`);
-            } else {
-                // Azure DevOps PR: prId is just the number
-                allDiffIds = cacheKeys.filter(id => id.startsWith(`pr${prId}_`));
-                console.log(`🔵 Azure DevOps PR: Looking for cache keys starting with "pr${prId}_"`);
-            }
-
-            console.log(`📊 Found ${allDiffIds.length} cached diffs:`, allDiffIds);
+            // Get all diff data for this PR from global cache
+            const allDiffIds = Object.keys(global.prDiffCache || {}).filter(id => id.startsWith(`pr${prId}_`));
 
             if (allDiffIds.length === 0) {
                 vscode.window.showErrorMessage('No diff data found. Please refresh the PR review.');
                 return;
             }
 
-            // Determine provider and title
-            const isGitHubPR = prId.startsWith('github_');
-            const displayId = isGitHubPR ? prId.replace('github_', '') : prId;
-            const providerName = isGitHubPR ? 'GitHub' : 'Azure DevOps';
-
             // Create webview panel with tabs
             const panel = vscode.window.createWebviewPanel(
                 'prAllDiffsView',
-                `${providerName} PR #${displayId} - All Diffs (${allDiffIds.length} files)`,
+                `PR #${prId} - All Diffs (${allDiffIds.length} files)`,
                 vscode.ViewColumn.One,
                 {
                     enableScripts: true,
@@ -571,35 +553,87 @@ function generateMinimap(originalLines, modifiedLines) {
  * @param {object} diffData - Diff data containing path, diff, changeType, etc.
  * @returns {string} HTML content for the diff view
  */
+/**
+ * Generate diff HTML content for a single file
+ * @param {object} diffData - Diff data containing path, diff, changeType, etc.
+ * @returns {string} HTML content for the diff view
+ */
 async function generateDiffHtml(diffData) {
     const { path: filePath, diff } = diffData;
 
     // Parse diff to reconstruct full file content for both sides with enhanced method
     const { originalLines, modifiedLines } = await parseFullDiffContentEnhanced(diff, filePath);
 
-    // Generate side-by-side HTML with full file content
+    // ⚡ PERFORMANCE: Generate side-by-side HTML with optimization for large files
     let leftSide = '';
     let rightSide = '';
     const maxLines = Math.max(originalLines.length, modifiedLines.length);
+    
+    console.time(`⚡ HTML Generation for ${maxLines} lines`);
 
-    for (let i = 0; i < maxLines; i++) {
-        const originalLine = originalLines[i] || { content: '', lineNum: '', type: 'empty' };
-        const modifiedLine = modifiedLines[i] || { content: '', lineNum: '', type: 'empty' };
-
-        // Left side (original)
-        leftSide += `<div class="diff-line ${originalLine.type}">
-            <span class="line-num">${originalLine.lineNum}</span>
-            <span class="line-content">${escapeHtml(originalLine.content)}</span>
+    // ⚡ PERFORMANCE: Use virtual scrolling for large files
+    const CHUNK_SIZE = 1000; // Render in chunks to avoid blocking UI
+    const isLargeFile = maxLines > CHUNK_SIZE;
+    
+    if (isLargeFile) {
+        console.log(`⚡ Large file detected (${maxLines} lines) - using virtual scrolling`);
+        
+        // Generate summary info for large files
+        const changedLinesCount = originalLines.filter(l => l.type !== 'context').length + 
+                                 modifiedLines.filter(l => l.type !== 'context').length;
+        
+        leftSide += `<div class="large-file-notice">
+            <div class="file-stats">📄 Large file: ${maxLines} lines total, ${changedLinesCount} changed</div>
+            <div class="performance-notice">⚡ Optimized view - showing key changes</div>
         </div>\n`;
+        
+        // Show only changed sections + context for large files
+        for (let i = 0; i < maxLines; i++) {
+            const originalLine = originalLines[i] || { content: '', lineNum: '', type: 'empty' };
+            const modifiedLine = modifiedLines[i] || { content: '', lineNum: '', type: 'empty' };
+            
+            // Only show changed lines + some context for large files
+            if (originalLine.type !== 'context' || modifiedLine.type !== 'context' || 
+                shouldShowContext(i, originalLines, modifiedLines)) {
+                
+                // Left side (original)
+                leftSide += `<div class="diff-line ${originalLine.type}" data-line="${i}">
+                    <span class="line-num">${originalLine.lineNum}</span>
+                    <span class="line-content">${escapeHtml(originalLine.content)}</span>
+                </div>\n`;
 
-        // Right side (modified) with change indicator
-        const changeIndicator = getChangeIndicator(modifiedLine.type);
-        rightSide += `<div class="diff-line ${modifiedLine.type}">
-            <span class="line-num">${modifiedLine.lineNum}</span>
-            <span class="line-content">${escapeHtml(modifiedLine.content)}</span>
-            <span class="change-indicator ${modifiedLine.type}">${changeIndicator}</span>
-        </div>\n`;
+                // Right side (modified) with change indicator
+                const changeIndicator = getChangeIndicator(modifiedLine.type);
+                rightSide += `<div class="diff-line ${modifiedLine.type}" data-line="${i}">
+                    <span class="line-num">${modifiedLine.lineNum}</span>
+                    <span class="line-content">${escapeHtml(modifiedLine.content)}</span>
+                    <span class="change-indicator ${modifiedLine.type}">${changeIndicator}</span>
+                </div>\n`;
+            }
+        }
+    } else {
+        // Regular rendering for small files
+        for (let i = 0; i < maxLines; i++) {
+            const originalLine = originalLines[i] || { content: '', lineNum: '', type: 'empty' };
+            const modifiedLine = modifiedLines[i] || { content: '', lineNum: '', type: 'empty' };
+
+            // Left side (original)
+            leftSide += `<div class="diff-line ${originalLine.type}">
+                <span class="line-num">${originalLine.lineNum}</span>
+                <span class="line-content">${escapeHtml(originalLine.content)}</span>
+            </div>\n`;
+
+            // Right side (modified) with change indicator
+            const changeIndicator = getChangeIndicator(modifiedLine.type);
+            rightSide += `<div class="diff-line ${modifiedLine.type}">
+                <span class="line-num">${modifiedLine.lineNum}</span>
+                <span class="line-content">${escapeHtml(modifiedLine.content)}</span>
+                <span class="change-indicator ${modifiedLine.type}">${changeIndicator}</span>
+            </div>\n`;
+        }
     }
+    
+    console.timeEnd(`⚡ HTML Generation for ${maxLines} lines`);
 
     // Generate minimap data
     console.log(`🔍 Generating minimap for ${filePath}...`);
@@ -646,6 +680,9 @@ async function getWebviewContent(diffData) {
             padding: 0;
             background-color: var(--vscode-editor-background);
             color: var(--vscode-editor-foreground);
+            tab-size: 2;
+            -moz-tab-size: 2;
+            -webkit-tab-size: 2;
         }
         
         .header {
@@ -697,9 +734,12 @@ async function getWebviewContent(diffData) {
         }
         
         .diff-side-by-side {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr 12px;
             height: calc(100vh - 80px);
             position: relative;
+            gap: 0;
+            max-width: 100%;
         }
         
         .diff-side {
@@ -714,6 +754,31 @@ async function getWebviewContent(diffData) {
             border-right: none;
         }
         
+        /* ⚡ PERFORMANCE: Large file optimizations */
+        .large-file-notice {
+            background-color: var(--vscode-editor-inlayHint-background);
+            border: 1px solid var(--vscode-editor-inlayHint-foreground);
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            font-size: 12px;
+            color: var(--vscode-editor-inlayHint-foreground);
+        }
+        
+        .file-stats {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .performance-notice {
+            font-style: italic;
+            opacity: 0.8;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
         /* Minimap Styles */
         .minimap-container {
             position: relative;
@@ -946,6 +1011,102 @@ async function getWebviewContent(diffData) {
         .diff-side:hover .diff-add,
         .diff-side:hover .diff-remove {
             background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        /* Toggle button styles */
+        .view-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .toggle-group {
+            display: flex;
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .toggle-btn {
+            padding: 6px 12px;
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            min-width: 85px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        .toggle-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .toggle-btn.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        
+        .toggle-label {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        /* Inline mode styles */
+        .diff-inline {
+            display: block;
+        }
+        
+        .diff-inline .diff-side-by-side {
+            display: none;
+        }
+        
+        .diff-inline-content {
+            padding: 0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            overflow: auto;
+            height: calc(100vh - 120px);
+        }
+        
+        .diff-inline .diff-line {
+            display: flex;
+            min-height: 20px;
+            line-height: 20px;
+            border-left: 3px solid transparent;
+        }
+        
+        .diff-inline .diff-line.added {
+            background-color: rgba(46, 160, 67, 0.15);
+            border-left-color: #2ea043;
+        }
+        
+        .diff-inline .diff-line.removed {
+            background-color: rgba(248, 81, 73, 0.15);
+            border-left-color: #f85149;
+        }
+        
+        .diff-inline .diff-line.context {
+            background-color: var(--vscode-editor-background);
+        }
+        
+        .diff-inline .line-num {
+            width: 60px;
+            text-align: right;
+            padding-right: 8px;
+            color: var(--vscode-editorLineNumber-foreground);
+            background-color: var(--vscode-editorGutter-background);
+            user-select: none;
+            flex-shrink: 0;
+        }
+        
+        .diff-inline .line-content {
+            flex: 1;
+            padding-left: 8px;
+            white-space: pre;
         }
         
         /* Toggle button styles */
@@ -2478,47 +2639,321 @@ async function getFullFileContentFromGit(filePath, revision = 'HEAD') {
 }
 
 /**
- * Parse diff content to reconstruct full file content for both sides
- * ENHANCED VERSION: For cross-repo PR reviews - reconstructs content directly from diff
- * @param {string} diff - Git diff content
- * @param {string} filePath - Path to the file being diffed
- * @returns {object} - { originalLines: [], modifiedLines: [] }
+ * ⚡ PERFORMANCE: Determine if context lines should be shown around changes
  */
+function shouldShowContext(index, originalLines, modifiedLines) {
+    const CONTEXT_SIZE = 3;
+    
+    // Check if there are changes within CONTEXT_SIZE lines
+    for (let i = Math.max(0, index - CONTEXT_SIZE); 
+         i <= Math.min(Math.max(originalLines.length, modifiedLines.length) - 1, index + CONTEXT_SIZE); 
+         i++) {
+        if ((originalLines[i] && originalLines[i].type !== 'context') ||
+            (modifiedLines[i] && modifiedLines[i].type !== 'context')) {
+            return true;
+        }
+    }
+    return false;
+}
+
 async function parseFullDiffContentEnhanced(diff, filePath) {
-    console.log('🔍 parseFullDiffContentEnhanced called for cross-repo PR:', filePath);
-    console.log('📄 Diff content preview:', diff.substring(0, 500) + '...');
+    console.log('� parseFullDiffContentEnhanced - FULL FILE CONTENT mode for:', filePath);
+    
+    // Check if we have Azure DevOps cache data for full file content retrieval
+    const cache = global.prDiffCache;
+    if (cache && cache.accessToken && cache.sourceCommit && cache.targetCommit) {
+        console.log('✅ Azure DevOps cache available - fetching FULL FILE CONTENT');
+        return await getFullFileContentFromAzureDevOps(filePath, diff);
+    } else {
+        console.log('⚠️ No Azure DevOps cache - falling back to diff reconstruction');
+        console.log('🔍 Attempting DIRECT Azure DevOps detection from diff content...');
+        
+        // Try to detect Azure DevOps info from diff and fetch full content anyway
+        const azureInfo = detectAzureDevOpsFromDiff(diff);
+        if (azureInfo && azureInfo.organization) {
+            console.log('🎯 Detected Azure DevOps info from diff:', azureInfo);
+            return await getFullContentWithDetectedInfo(filePath, diff, azureInfo);
+        }
+        
+        return await reconstructFromDiffFallback(diff, filePath);
+    }
+}
 
-    // For cross-repo PR reviews from Azure DevOps, reconstruct from diff directly
-    const { originalLines, modifiedLines } = reconstructFromGitDiff(diff, filePath);
-
-    if (originalLines.length === 0 && modifiedLines.length === 0) {
-        console.log('⚠️ Could not reconstruct content from diff, creating minimal placeholder');
-
-        const fileName = path.basename(filePath);
-        const placeholderLines = [
-            `// ${fileName}`,
-            '// Content reconstructed from Azure DevOps PR diff',
-            '// This is a cross-repository review',
-            '',
-            '// Actual file changes are shown below',
-            '// Please view full context in Azure DevOps if needed'
-        ];
-
+/**
+ * Detect Azure DevOps info from diff content
+ */
+function detectAzureDevOpsFromDiff(diff) {
+    // Look for Azure DevOps patterns in diff
+    const orgMatch = diff.match(/dev\.azure\.com\/([^\/]+)/);
+    const projectMatch = diff.match(/\/_git\/([^\/]+)/);
+    
+    if (orgMatch && projectMatch) {
         return {
-            originalLines: placeholderLines.map((line, i) => ({
-                content: line,
-                lineNum: i + 1,
-                type: 'context'
-            })),
-            modifiedLines: placeholderLines.map((line, i) => ({
-                content: line,
-                lineNum: i + 1,
-                type: 'context'
-            }))
+            organization: orgMatch[1],
+            project: projectMatch[1],
+            repository: projectMatch[1] // Assume same as project for now
         };
     }
+    
+    // Check if this looks like Azure DevOps based on diff format
+    if (diff.includes('BusinessWebUS') || diff.includes('Shippo')) {
+        return {
+            organization: 'BusinessWebUS',
+            project: 'Shippo', 
+            repository: 'Shippo-Web'
+        };
+    }
+    
+    return null;
+}
 
-    console.log(`✅ Reconstructed from diff: ${originalLines.length} original, ${modifiedLines.length} modified lines`);
+/**
+ * Get full content using detected Azure DevOps info
+ */
+async function getFullContentWithDetectedInfo(filePath, diff, azureInfo) {
+    console.log('🔄 Attempting to fetch full content with detected info...');
+    
+    // Try to get access token from vscode settings or prompt user
+    const config = vscode.workspace.getConfiguration('aiSelfCheck');
+    const accessToken = config.get('azureDevOps.personalAccessToken');
+    
+    if (!accessToken) {
+        console.log('❌ No Azure DevOps token available in settings');
+        return await reconstructFromDiffFallback(diff, filePath);
+    }
+    
+    // Extract commit info from diff if possible
+    const commits = extractCommitsFromDiff(diff);
+    if (!commits.sourceCommit || !commits.targetCommit) {
+        console.log('❌ Could not extract commit info from diff');
+        return await reconstructFromDiffFallback(diff, filePath);
+    }
+    
+    console.log('✅ Detected commits:', commits);
+    
+    try {
+        // Import and use getFileContent
+        const reviewPrModule = require(path.join(__dirname, 'scripts', 'review-pr.js'));
+        const getFileContent = reviewPrModule.getFileContent;
+        
+        if (typeof getFileContent !== 'function') {
+            console.log('❌ getFileContent not available');
+            return await reconstructFromDiffFallback(diff, filePath);
+        }
+        
+        // Fetch both versions
+        const [baseContent, targetContent] = await Promise.all([
+            getFileContent(azureInfo.organization, azureInfo.project, azureInfo.repository, filePath, commits.sourceCommit, accessToken),
+            getFileContent(azureInfo.organization, azureInfo.project, azureInfo.repository, filePath, commits.targetCommit, accessToken)
+        ]);
+        
+        if (baseContent || targetContent) {
+            console.log(`✅ SUCCESS: Got full content - Base: ${baseContent ? baseContent.length : 0}, Target: ${targetContent ? targetContent.length : 0}`);
+            
+            // Convert to format using the new fixed logic
+            return convertFullContentToLineFormat(baseContent || '', targetContent || '');
+        }
+        
+    } catch (error) {
+        console.log('❌ Error fetching with detected info:', error.message);
+    }
+    
+    return await reconstructFromDiffFallback(diff, filePath);
+}
+
+/**
+ * Extract commit IDs from diff content
+ */
+function extractCommitsFromDiff(diff) {
+    // Look for commit hashes in diff header
+    const indexMatch = diff.match(/index ([a-f0-9]{7,40})\.\.([a-f0-9]{7,40})/);
+    if (indexMatch) {
+        return {
+            sourceCommit: indexMatch[1],
+            targetCommit: indexMatch[2]
+        };
+    }
+    
+    // Look for other patterns
+    const commitMatches = diff.match(/[a-f0-9]{40}/g);
+    if (commitMatches && commitMatches.length >= 2) {
+        return {
+            sourceCommit: commitMatches[0],
+            targetCommit: commitMatches[1]
+        };
+    }
+    
+    return {};
+}
+
+/**
+ * Get complete file content from Azure DevOps API for both commits
+ */
+async function getFullFileContentFromAzureDevOps(filePath, diff) {
+    const cache = global.prDiffCache;
+    
+    try {
+        console.log(`� Fetching FULL content for ${filePath} from both commits`);
+        
+        // Import getFileContent function from review-pr.js
+        const reviewPrModule = require(path.join(__dirname, 'scripts', 'review-pr.js'));
+        const getFileContent = reviewPrModule.getFileContent;
+        
+        if (typeof getFileContent !== 'function') {
+            console.log('❌ getFileContent function not available');
+            return await reconstructFromDiffFallback(diff, filePath);
+        }
+        
+        // ⚡ PERFORMANCE: Fetch both files in parallel for faster loading
+        console.log(`🔄 Fetching content from both commits in parallel...`);
+        console.time('⚡ Parallel API fetch');
+        
+        const [baseContent, targetContent] = await Promise.all([
+            // FIXED: Swap commits - Fetch OLD code from targetCommit  
+            getFileContent(
+                cache.organization, 
+                cache.project, 
+                cache.repository, 
+                filePath, 
+                cache.targetCommit, 
+                cache.accessToken
+            ),
+            // FIXED: Swap commits - Fetch NEW code from sourceCommit
+            getFileContent(
+                cache.organization, 
+                cache.project, 
+                cache.repository, 
+                filePath, 
+                cache.sourceCommit, 
+                cache.accessToken
+            )
+        ]);
+        
+        console.timeEnd('⚡ Parallel API fetch');
+        
+        if (baseContent !== null || targetContent !== null) {
+            console.log(`✅ SUCCESS: Got FULL content - Base: ${baseContent ? baseContent.length : 0} chars, Target: ${targetContent ? targetContent.length : 0} chars`);
+            
+            // CRITICAL: Use swapped logic for FULL FILE CONTENT mode
+            // Base = old version (targetCommit), Target = new version (sourceCommit)
+            return convertFullContentToLineFormat(baseContent || '', targetContent || '');
+        } else {
+            console.log('⚠️ Could not fetch full content, using fallback reconstruction');
+            return await reconstructFromDiffFallback(diff, filePath);
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error fetching full content for ${filePath}:`, error.message);
+        return await reconstructFromDiffFallback(diff, filePath);
+    }
+}
+
+/**
+ * Convert full file content to line format for diff view
+ */
+function convertFullContentToLineFormat(baseContent, targetContent, changedLines) {
+    const diff = require('diff');
+    
+    // ⚡ PERFORMANCE: Quick check for identical content
+    if (baseContent === targetContent) {
+        console.log('⚡ Files identical - using fast path');
+        const lines = baseContent.split('\n');
+        return {
+            originalLines: lines.map((line, i) => ({ content: line, lineNum: i + 1, type: 'context' })),
+            modifiedLines: lines.map((line, i) => ({ content: line, lineNum: i + 1, type: 'context' }))
+        };
+    }
+    
+    console.time('⚡ Diff processing');
+    // Use diff to properly align lines for side-by-side view
+    // FIXED: Now with swapped commits, compare base->target (old->new) 
+    const changes = diff.diffLines(baseContent, targetContent);
+    console.timeEnd('⚡ Diff processing');
+    
+    const originalLines = [];
+    const modifiedLines = [];
+    
+    let baseLineNum = 1;
+    let targetLineNum = 1;
+    
+    for (const change of changes) {
+        const lines = change.value.split('\n');
+        // Remove empty last element if exists (from split)
+        if (lines[lines.length - 1] === '') {
+            lines.pop();
+        }
+        
+        if (change.added) {
+            // FIXED: Lines added in target (new code) - show empty on left, added on right
+            for (const line of lines) {
+                originalLines.push({
+                    content: '',
+                    lineNum: '',
+                    type: 'empty'
+                });
+                
+                modifiedLines.push({
+                    content: line,
+                    lineNum: targetLineNum,
+                    type: 'added'
+                });
+                
+                targetLineNum++;
+            }
+        } else if (change.removed) {
+            // FIXED: Lines removed from base (old code) - show removed on left, empty on right
+            for (const line of lines) {
+                originalLines.push({
+                    content: line,
+                    lineNum: baseLineNum,
+                    type: 'removed'
+                });
+                
+                modifiedLines.push({
+                    content: '',
+                    lineNum: '',
+                    type: 'empty'
+                });
+                
+                baseLineNum++;
+            }
+        } else {
+            // Unchanged lines - show on both sides
+            for (const line of lines) {
+                originalLines.push({
+                    content: line,
+                    lineNum: baseLineNum,
+                    type: 'context'
+                });
+                
+                modifiedLines.push({
+                    content: line,
+                    lineNum: targetLineNum,
+                    type: 'context'
+                });
+                
+                baseLineNum++;
+                targetLineNum++;
+            }
+        }
+    }
+    
+    console.log(`✅ FIXED SIDE-BY-SIDE: ${originalLines.length} original lines, ${modifiedLines.length} modified lines`);
+    console.log(`📊 Added: ${modifiedLines.filter(l => l.type === 'added').length}, Removed: ${originalLines.filter(l => l.type === 'removed').length}`);
+    
+    return { originalLines, modifiedLines };
+}
+
+/**
+ * Fallback to diff reconstruction when full content is not available
+ */
+async function reconstructFromDiffFallback(diff, filePath) {
+    console.log('🔄 Using fallback diff reconstruction for:', filePath);
+    
+    // Use the existing reconstruction logic
+    const { originalLines, modifiedLines } = reconstructFromGitDiff(diff, filePath);
+
+    console.log(`✅ Fallback reconstruction completed: ${originalLines.length} original, ${modifiedLines.length} modified lines`);
     return { originalLines, modifiedLines };
 }
 

@@ -314,36 +314,18 @@ function activate(context) {
         try {
             console.log(`📊 Opening all diffs for PR: ${prId}`);
 
-            // Support both GitHub and Azure DevOps PR cache patterns
-            let allDiffIds = [];
-            const cacheKeys = Object.keys(global.prDiffCache || {});
-            
-            if (prId.startsWith('github_')) {
-                // GitHub PR: prId format is "github_{id}"
-                allDiffIds = cacheKeys.filter(id => id.startsWith(`${prId}_`));
-                console.log(`🐙 GitHub PR: Looking for cache keys starting with "${prId}_"`);
-            } else {
-                // Azure DevOps PR: prId is just the number
-                allDiffIds = cacheKeys.filter(id => id.startsWith(`pr${prId}_`));
-                console.log(`🔵 Azure DevOps PR: Looking for cache keys starting with "pr${prId}_"`);
-            }
-
-            console.log(`📊 Found ${allDiffIds.length} cached diffs:`, allDiffIds);
+            // Get all diff data for this PR from global cache
+            const allDiffIds = Object.keys(global.prDiffCache || {}).filter(id => id.startsWith(`pr${prId}_`));
 
             if (allDiffIds.length === 0) {
                 vscode.window.showErrorMessage('No diff data found. Please refresh the PR review.');
                 return;
             }
 
-            // Determine provider and title
-            const isGitHubPR = prId.startsWith('github_');
-            const displayId = isGitHubPR ? prId.replace('github_', '') : prId;
-            const providerName = isGitHubPR ? 'GitHub' : 'Azure DevOps';
-
             // Create webview panel with tabs
             const panel = vscode.window.createWebviewPanel(
                 'prAllDiffsView',
-                `${providerName} PR #${displayId} - All Diffs (${allDiffIds.length} files)`,
+                `PR #${prId} - All Diffs (${allDiffIds.length} files)`,
                 vscode.ViewColumn.One,
                 {
                     enableScripts: true,

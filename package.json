@@ -145,6 +145,12 @@
           "default": false,
           "description": "Use your own AI API key instead of GitHub Copilot for code review (useful for users without Copilot license)",
           "scope": "application"
+        },
+        "aiSelfCheck.github.personalAccessToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token for PR review (requires repo or public_repo permissions)",
+          "scope": "application"
         }
       }
     },
@@ -191,7 +197,9 @@
   },
   "dependencies": {
     "diff": "^8.0.2",
+    "highlight.js": "^11.11.1",
     "node-fetch": "^2.7.0",
+    "prismjs": "^1.30.0",
     "sharp": "^0.34.4"
   }
 }

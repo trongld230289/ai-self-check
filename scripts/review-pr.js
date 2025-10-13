@@ -1,3 +1,141 @@
+/**
+ * FUNCTION B - Handle GitHub PR diffs and show in webview
+ * Dedicated function for GitHub diffs - clean separation from Azure DevOps
+ * @param {object} prAnalysis - GitHub PR analysis result
+ * @param {object} stream - VS Code stream for output
+ */
+async function showGitHubDiffInWebview(prAnalysis, stream) {
+    console.log('🐙 GitHub Function B: Starting GitHub diff webview display');
+    
+    if (!prAnalysis || !prAnalysis.data || !prAnalysis.data.fileChanges) {
+        stream.markdown('❌ **No GitHub diff data available**\n\n');
+        return;
+    }
+
+    const data = prAnalysis.data;
+    const fileChanges = data.fileChanges;
+    
+    // Initialize global cache for GitHub diffs
+    if (!global.prDiffCache) {
+        global.prDiffCache = {};
+    }
+
+    stream.markdown('🐙 **GitHub Diff Webview Display**\n\n');
+    
+    // Cache all GitHub file changes for webview access
+    fileChanges.forEach(fileChange => {
+        const diffId = `github_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        global.prDiffCache[diffId] = {
+            ...fileChange,
+            provider: 'github',
+            prId: data.id,
+            // Ensure diffContent is available for webview
+            diff: fileChange.diffContent || fileChange.diff || '',
+            diffContent: fileChange.diffContent || fileChange.diff || ''
+        };
+        
+        console.log(`🔍 Cached GitHub diff: ${diffId} for ${fileChange.path}`);
+        console.log(`📊 DEBUG: diffContent length: ${(fileChange.diffContent || '').length}, diff length: ${(fileChange.diff || '').length}`);
+    });
+
+    // Debug cache summary for GitHub
+    const githubCacheKeys = Object.keys(global.prDiffCache).filter(k => k.startsWith(`github_${data.id}_`));
+    console.log(`🐙 GitHub cache summary: ${githubCacheKeys.length} files cached:`, githubCacheKeys);
+
+    // Display file links with webview buttons
+    stream.markdown('📁 **Files in this GitHub PR:**\n\n');
+    
+    fileChanges.forEach(fileChange => {
+        const diffId = `github_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const fileName = fileChange.path.split('/').pop();
+        
+        // Create button to open diff in webview
+        stream.button({
+            command: 'aiSelfCheck.viewPrDiff',
+            title: `📄 ${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            arguments: [diffId]
+        });
+        
+        stream.markdown(`\n**${fileChange.path}** - ${fileChange.changeType} (+${fileChange.additions}/-${fileChange.deletions})\n\n`);
+    });
+
+    // Button to view all diffs at once
+    stream.button({
+        command: 'aiSelfCheck.viewAllPrDiffs',
+        title: `📊 View All ${fileChanges.length} Files in Tabbed Webview`,
+        arguments: [`github_${data.id}`]
+    });
+
+    stream.markdown('\n\n💡 **Click any file button above to view diff in webview**\n\n');
+}
+
+/**
+ * FUNCTION A - Handle Azure DevOps PR diffs and show in webview  
+ * Dedicated function for Azure DevOps diffs - clean separation from GitHub
+ * @param {object} prAnalysis - Azure DevOps PR analysis result
+ * @param {object} stream - VS Code stream for output
+ */
+async function showAzureDevOpsDiffInWebview(prAnalysis, stream) {
+    console.log('🔵 Azure Function A: Starting Azure DevOps diff webview display');
+    
+    if (!prAnalysis || !prAnalysis.data || !prAnalysis.data.fileChanges) {
+        stream.markdown('❌ **No Azure DevOps diff data available**\n\n');
+        return;
+    }
+
+    const data = prAnalysis.data;
+    const fileChanges = data.fileChanges;
+    
+    // Initialize global cache for Azure DevOps diffs
+    if (!global.prDiffCache) {
+        global.prDiffCache = {};
+    }
+
+    stream.markdown('🔵 **Azure DevOps Diff Webview Display**\n\n');
+    
+    // Cache all Azure DevOps file changes for webview access
+    fileChanges.forEach(fileChange => {
+        const diffId = `pr${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        global.prDiffCache[diffId] = {
+            ...fileChange,
+            provider: 'azure',
+            prId: data.id,
+            // Ensure diffContent is available for webview
+            diff: fileChange.diffContent || fileChange.diff || '',
+            diffContent: fileChange.diffContent || fileChange.diff || ''
+        };
+        
+        console.log(`🔍 Cached Azure DevOps diff: ${diffId} for ${fileChange.path}`);
+    });
+
+    // Display file links with webview buttons
+    stream.markdown('📁 **Files in this Azure DevOps PR:**\n\n');
+    
+    fileChanges.forEach(fileChange => {
+        const diffId = `pr${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const fileName = fileChange.path.split('/').pop();
+        
+        // Create button to open diff in webview
+        stream.button({
+            command: 'aiSelfCheck.viewPrDiff',
+            title: `📄 ${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            arguments: [diffId]
+        });
+        
+        stream.markdown(`\n**${fileChange.path}** - ${fileChange.changeType} (+${fileChange.additions}/-${fileChange.deletions})\n\n`);
+    });
+
+    // Button to view all diffs at once
+    stream.button({
+        command: 'aiSelfCheck.viewAllPrDiffs',
+        title: `📊 View All ${fileChanges.length} Files in Tabbed Webview`,
+        arguments: [data.id]
+    });
+
+    stream.markdown('\n\n💡 **Click any file button above to view diff in webview**\n\n');
+}
 const vscode = require('vscode');
 const path = require('path');
 const https = require('https');
@@ -146,28 +284,60 @@ async function handleReviewPr(request, context, stream, token) {
         // Get PR diff and analyze based on repo type
         let prAnalysis;
         if (repoType === 'github') {
+            console.log(`🐙 DEBUG: Starting GitHub PR analysis for ${owner}/${repo}#${prId}`);
             prAnalysis = await analyzeGitHubPullRequest(stream, owner, repo, prId);
+            console.log('🐙 DEBUG: GitHub PR analysis result:', JSON.stringify(prAnalysis, null, 2));
         } else {
+            console.log(`🔵 DEBUG: Starting Azure DevOps PR analysis for PR #${prId}`);
             prAnalysis = await analyzePullRequest(stream, prId, organization, project, repository);
+            console.log('🔵 DEBUG: Azure PR analysis result:', JSON.stringify(prAnalysis, null, 2));
         }
 
         if (prAnalysis.error) {
             stream.markdown(`❌ **Error**: ${prAnalysis.error}\n\n`);
             stream.markdown('**Possible causes:**\n');
-            stream.markdown('• Insufficient Azure DevOps access permissions\n');
-            stream.markdown('• PR ID does not exist\n');
-            stream.markdown('• Credentials configuration is incorrect\n');
+            if (repoType === 'github') {
+                stream.markdown('• GitHub token not configured or insufficient permissions\n');
+                stream.markdown('• PR ID does not exist or repository is private\n');
+                stream.markdown('• Rate limit exceeded\n');
+            } else {
+                stream.markdown('• Insufficient Azure DevOps access permissions\n');
+                stream.markdown('• PR ID does not exist\n');
+                stream.markdown('• Credentials configuration is incorrect\n');
+            }
             return;
         }
 
         // Display basic PR info after successful fetch
         const data = prAnalysis.data;
         if (data) {
+            console.log(`📊 DEBUG: PR data structure:`, {
+                title: data.title,
+                author: data.author,
+                status: data.status,
+                sourceBranch: data.sourceBranch,
+                targetBranch: data.targetBranch,
+                fileChangesCount: data.fileChanges?.length,
+                repoType: repoType
+            });
+            
             stream.markdown(`📝 **Title**: ${data.title} ⭐ **Author**: ${data.author} 🔄 **Status**: ${data.status}\n\n`);
             
             // Display branch information
             if (data.sourceBranch && data.targetBranch) {
                 stream.markdown(`🌿 **Merging**: \`${data.sourceBranch}\` → \`${data.targetBranch}\`\n\n`);
+            }
+            
+            // Debug file changes for GitHub
+            if (repoType === 'github' && data.fileChanges) {
+                console.log(`🐙 DEBUG: GitHub file changes:`, data.fileChanges.map(f => ({
+                    path: f.path,
+                    changeType: f.changeType,
+                    additions: f.additions,
+                    deletions: f.deletions,
+                    hasDiffContent: !!f.diffContent,
+                    diffContentLength: f.diffContent?.length || 0
+                })));
             }
         }
 
@@ -1070,20 +1240,50 @@ async function getGitHubPR(owner, repo, prId, token) {
         const fileChanges = files.map(file => {
             let diffContent = '';
 
-            // Use patch from API if available
+            // GitHub API provides patch content directly (not full git diff)
             if (file.patch) {
+                // Build complete diff format from GitHub patch
                 diffContent = `diff --git a/${file.filename} b/${file.filename}\n`;
-                diffContent += `--- a/${file.filename}\n`;
-                diffContent += `+++ b/${file.filename}\n`;
+                
+                // Add file mode information based on status
+                if (file.status === 'added') {
+                    diffContent += `new file mode 100644\n`;
+                    diffContent += `--- /dev/null\n`;
+                    diffContent += `+++ b/${file.filename}\n`;
+                } else if (file.status === 'removed') {
+                    diffContent += `deleted file mode 100644\n`;
+                    diffContent += `--- a/${file.filename}\n`;
+                    diffContent += `+++ /dev/null\n`;
+                } else if (file.status === 'renamed') {
+                    diffContent += `--- a/${file.previous_filename || file.filename}\n`;
+                    diffContent += `+++ b/${file.filename}\n`;
+                } else {
+                    diffContent += `--- a/${file.filename}\n`;
+                    diffContent += `+++ b/${file.filename}\n`;
+                }
+                
+                // Add the patch content (which contains the @@ hunks)
                 diffContent += file.patch;
+                
+                console.log(`🔧 DEBUG: Built complete diff for ${file.filename}: ${diffContent.length} chars`);
+                console.log(`🔍 DEBUG: GitHub patch for ${file.filename}:`, file.patch);
+                console.log(`🔧 DEBUG: Complete diffContent:`, diffContent);
+            } else if (file.status === 'renamed' && !file.patch) {
+                // Handle renamed files without content changes
+                diffContent = `diff --git a/${file.previous_filename} b/${file.filename}\n`;
+                diffContent += `similarity index 100%\n`;
+                diffContent += `rename from ${file.previous_filename}\n`;
+                diffContent += `rename to ${file.filename}\n`;
             } else if (finalDiff) {
-                // Extract from unified diff
+                // Extract from unified diff as fallback
                 const filePattern = new RegExp(`diff --git a/${file.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} b/${file.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)(?=diff --git|$)`, 'g');
                 const match = filePattern.exec(finalDiff);
                 if (match) {
                     diffContent = `diff --git a/${file.filename} b/${file.filename}${match[1]}`;
                 }
             }
+
+            console.log(`🔍 Final diffContent for ${file.filename}: ${diffContent.length} chars`);
 
             return {
                 path: file.filename,
@@ -1092,6 +1292,8 @@ async function getGitHubPR(owner, repo, prId, token) {
                 deletions: file.deletions || 0,
                 changes: file.changes || 0,
                 diffContent: diffContent,
+                diff: diffContent, // For compatibility
+                source: 'GitHub API',
                 previousFilename: file.previous_filename
             };
         });
@@ -1832,12 +2034,19 @@ async function performQuickReview(stream, prAnalysis) {
 }
 
 /**
- * Display PR review results in chat stream (Azure DevOps style)
+ * Display PR review results - PROVIDER ROUTING
+ * Routes to Function A (Azure DevOps) or Function B (GitHub) based on provider
  */
 async function displayPrReviewResults(stream, prAnalysis) {
     const data = prAnalysis.data;
 
-    // NEW: Display commits list
+    // Detect provider type based on PR data structure
+    const isGitHubPR = data.owner && data.repository; // GitHub has owner/repo
+    const isAzurePR = data.organization && data.project; // Azure has org/project
+
+    console.log(`🔍 Provider detection: GitHub=${isGitHubPR}, Azure=${isAzurePR}`);
+
+    // Display commits list (common for both providers)
     if (data.commitsList && data.commitsList.length > 0) {
         stream.markdown('## 📝 Commits in this PR\n\n');
         data.commitsList.forEach((commit, index) => {
@@ -1846,7 +2055,7 @@ async function displayPrReviewResults(stream, prAnalysis) {
         });
     }
 
-    // Summary of Changes section (controlled by global variable)
+    // Summary of Changes section (common for both providers)
     const totalFiles = data.fileChanges ? data.fileChanges.length : 0;
     const totalAdditions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.additions, 0) : 0;
     const totalDeletions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.deletions, 0) : 0;
@@ -1856,135 +2065,21 @@ async function displayPrReviewResults(stream, prAnalysis) {
     stream.markdown(`➕ **${totalAdditions} lines** added\n`);
     stream.markdown(`➖ **${totalDeletions} lines** deleted\n\n`);
 
-    // Files Changed Summary
-    if (data.fileChanges && data.fileChanges.length > 0) {
-        stream.markdown('## 📁 Files Changed Summary\n\n');
-
-        data.fileChanges.forEach((file, index) => {
-            // Change type icon
-            const changeIcon = file.changeType === 'edit' ? '📝 edit' :
-                file.changeType === 'add' ? '➕ add' :
-                    file.changeType === 'delete' ? '🗑️ delete' : `📝 ${file.changeType}`;
-
-            // Change statistics with colors
-            const statsText = file.additions > 0 || file.deletions > 0 ?
-                `+${file.additions}/-${file.deletions} lines` : 'binary file';
-
-            stream.markdown(`${index + 1}. **\`${file.path}\`**\n`);
-            stream.markdown(`   ${changeIcon} | ${statsText}\n\n`);
-        });
-
-        // Debug info
-        console.log(`📊 Processing ${data.fileChanges.length} files for detailed diffs`);
-        console.log(`📊 Final diff available: ${data.finalDiff ? 'YES' : 'NO'} (${data.finalDiff?.length || 0} chars)`);
-
-        // Debug: Show which files are in finalDiff vs fileChanges
-        console.log('🔍 Files in fileChanges array:');
-        data.fileChanges.forEach((file, i) => {
-            console.log(`  ${i + 1}. ${file.path} (${file.changeType}, +${file.additions}/-${file.deletions})`);
-        });
-
-      
-        // Cache diff content for webview (without displaying section)
-        data.fileChanges.forEach((file, index) => {
-            // Show diff content from multiple possible sources
-            let diffToShow = '';
-
-            // Priority 1: Extract from final diff if available (most reliable source)
-            if (data.finalDiff && file.path) {
-                console.log(`🔍 Extracting diff for file: ${file.path}`);
-
-                // Escape special regex characters in file path
-                const escapedPath = file.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                // Create pattern to match the file's diff section
-                const filePattern = new RegExp(`diff --git a/${escapedPath} b/${escapedPath}([\\s\\S]*?)(?=\\ndiff --git|$)`, 'm');
-                const match = data.finalDiff.match(filePattern);
-
-                if (match && match[0]) {
-                    diffToShow = match[0].trim();
-                    console.log(`✅ Found diff for ${file.path}: ${diffToShow.length} characters`);
-                } else {
-                    console.log(`⚠️ No diff pattern match found for ${file.path}`);
-                    // Try simpler pattern - just look for the filename anywhere in the diff
-                    const lines = data.finalDiff.split('\n');
-                    let fileStartIndex = -1;
-                    let fileEndIndex = -1;
-
-                    for (let i = 0; i < lines.length; i++) {
-                        if (lines[i].includes(`diff --git`) && lines[i].includes(file.path)) {
-                            fileStartIndex = i;
-                        } else if (fileStartIndex !== -1 && lines[i].includes(`diff --git`) && !lines[i].includes(file.path)) {
-                            fileEndIndex = i;
-                            break;
-                        }
-                    }
-
-                    if (fileStartIndex !== -1) {
-                        const endIndex = fileEndIndex !== -1 ? fileEndIndex : lines.length;
-                        diffToShow = lines.slice(fileStartIndex, endIndex).join('\n').trim();
-                        console.log(`✅ Found diff using line search for ${file.path}: ${diffToShow.length} characters`);
-                    }
-                }
-            }
-
-            // Priority 2: diffContent property
-            if (!diffToShow && file.diffContent && file.diffContent.trim()) {
-                diffToShow = file.diffContent;
-                console.log(`✅ Using diffContent for ${file.path}`);
-            }
-
-            // Priority 3: diff property (legacy)
-            if (!diffToShow && file.diff && file.diff.trim()) {
-                diffToShow = file.diff;
-                console.log(`✅ Using legacy diff property for ${file.path}`);
-            }
-
-            if (diffToShow && diffToShow.trim()) {
-                // Clean up the diff content
-                let cleanDiff = diffToShow;
-
-                // Remove any API error messages
-                cleanDiff = cleanDiff.replace(/\[Azure DevOps API - detailed diff content requires git access\]/g, '');
-                cleanDiff = cleanDiff.replace(/Change type: \w+/g, '');
-                cleanDiff = cleanDiff.replace(/File: .*$/gm, '');
-
-                // Ensure it starts with diff --git
-                if (!cleanDiff.startsWith('diff --git')) {
-                    cleanDiff = `diff --git a/${file.path} b/${file.path}\n${cleanDiff}`;
-                }
-
-                // Store diff in global cache for webview
-                const diffId = `pr${data.id}_file${index}`;
-                global.prDiffCache = global.prDiffCache || {};
-                global.prDiffCache[diffId] = {
-                    path: file.path,
-                    diff: cleanDiff.trim(),
-                    changeType: file.changeType,
-                    additions: file.additions || 0,
-                    deletions: file.deletions || 0
-                };
-
-                console.log(`✅ Cached diff for ${file.path}`);
-            } 
-        });
+    // PROVIDER ROUTING: Route to appropriate diff display function
+    if (isGitHubPR) {
+        console.log('🐙 Routing to GitHub Function B');
+        await showGitHubDiffInWebview(prAnalysis, stream);
+    } else if (isAzurePR) {
+        console.log('🔵 Routing to Azure DevOps Function A');
+        await showAzureDevOpsDiffInWebview(prAnalysis, stream);
+    } else {
+        // Fallback: assume Azure DevOps for backward compatibility
+        console.log('⚠️ Provider unknown, defaulting to Azure DevOps Function A');
+        await showAzureDevOpsDiffInWebview(prAnalysis, stream);
     }
 
-    // View All Diffs button
-    if (global.prDiffCache) {
-        const prDiffIds = Object.keys(global.prDiffCache).filter(id => id.startsWith(`pr${data.id}_`));
-        if (prDiffIds.length > 0) {
-            stream.markdown('\n');
-            stream.button({
-                command: 'aiSelfCheck.viewAllPrDiffs',
-                title: `📊 View All Diffs (${prDiffIds.length} files)`,
-                arguments: [data.id]
-            });
-            stream.markdown('\n');
-        }
-    }
-
-    stream.markdown('\n---\n\n');
+    // Provider-specific diff display is handled above by Function A or B
+    console.log(`📊 Provider routing complete. ${totalFiles} files processed.`);
 }
 
 /**
@@ -2048,5 +2143,8 @@ module.exports = {
     performBasicQuickAnalysis,
     performQuickReview,
     openPrReviewDocument,
-    parseRealGitDiff
+    parseRealGitDiff,
+    getFileContent,
+    showGitHubDiffInWebview,      // Function B - GitHub diff webview
+    showAzureDevOpsDiffInWebview  // Function A - Azure DevOps diff webview
 };
