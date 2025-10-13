@@ -3,9 +3,34 @@ const path = require('path');
 const https = require('https');
 const { execSync } = require('child_process');
 const { getReviewTemplate, getUnifiedModel, executeAIReview, shouldUseApiKey } = require('./review-common');
+const Diff = require('diff');
 
 // Global configuration variables
 const isShowSummaryOfChanges = false;
+
+// Helper function to count diff lines accurately (matches Azure DevOps)
+function countDiffLines(diffContent) {
+    const lines = diffContent.split('\n');
+    let additions = 0;
+    let deletions = 0;
+    
+    for (const line of lines) {
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+            const content = line.substring(1);
+            // Chỉ đếm dòng có nội dung thực (không phải trống)
+            if (content.trim().length > 0) {
+                additions++;
+            }
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+            const content = line.substring(1);
+            if (content.trim().length > 0) {
+                deletions++;
+            }
+        }
+    }
+    
+    return { additions, deletions };
+}
 
 // Azure DevOps Pull Request Review Feature
 
@@ -139,6 +164,11 @@ async function handleReviewPr(request, context, stream, token) {
         const data = prAnalysis.data;
         if (data) {
             stream.markdown(`📝 **Title**: ${data.title} ⭐ **Author**: ${data.author} 🔄 **Status**: ${data.status}\n\n`);
+            
+            // Display branch information
+            if (data.sourceBranch && data.targetBranch) {
+                stream.markdown(`🌿 **Merging**: \`${data.sourceBranch}\` → \`${data.targetBranch}\`\n\n`);
+            }
         }
 
         // Display PR review results
@@ -293,6 +323,11 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
         }
 
         const pr = prResponse.data;
+        
+        // Extract branch information
+        const sourceBranch = pr.sourceRefName?.replace('refs/heads/', '') || 'Unknown';
+        const targetBranch = pr.targetRefName?.replace('refs/heads/', '') || 'Unknown';
+        console.log(`🌿 Branch info: ${sourceBranch} → ${targetBranch}`);
 
         let commits = [];
         let fileChanges = [];
@@ -370,133 +405,67 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
 
                 console.log(`✅ Found ${actualFiles.length} actual file changes in PR (filtered from ${changesResponse.data.changeEntries.length} total entries)`);
 
-                // STEP 4: Get diff using Commits Comparison API (cross-repo compatible - no local git needed)
-                let gitDiffSuccessful = false;
+                // STEP 4 (SIMPLIFIED): Use file content + diff library only (universal approach)
+                console.log('🔄 Using simplified file content + diff library approach...');
 
-                if (pr.lastMergeSourceCommit && pr.lastMergeTargetCommit) {
-                    console.log('🔄 Fetching diff from Azure DevOps Commits Comparison API (cross-repo mode - no workspace dependency)...');
-
-                    // Use Diffs API to compare commits
-                    const baseCommit = pr.lastMergeTargetCommit.commitId;
-                    const targetCommit = pr.lastMergeSourceCommit.commitId;
-
-                    const diffsUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${baseCommit}&targetVersion=${targetCommit}&api-version=7.0`;
-                    const diffsResponse = await makeAzureDevOpsRequest(diffsUrl, token);
-
-                    if (diffsResponse.success && diffsResponse.data && diffsResponse.data.changes) {
-                        console.log(`✅ Found ${diffsResponse.data.changes.length} changes from Diffs API`);
-
-                        // Build unified diff from changes
-                        const diffParts = [];
-                        for (const change of diffsResponse.data.changes) {
-                            if (change.item && change.item.path) {
-                                const filePath = change.item.path;
-
-                                // Get actual diff content from Items Diff API
-                                const itemDiffUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/diffs/commits?baseVersion=${baseCommit}&targetVersion=${targetCommit}&diffCommonCommit=false&$format=text&path=${encodeURIComponent(filePath)}&api-version=7.0`;
-                                const itemDiffResponse = await makeAzureDevOpsRequest(itemDiffUrl, token);
-
-                                if (itemDiffResponse.success && typeof itemDiffResponse.data === 'string') {
-                                    diffParts.push(itemDiffResponse.data);
-                                    console.log(`  ✅ Got diff for ${filePath}: ${itemDiffResponse.data.length} chars`);
-                                }
-                            }
-                        }
-
-                        if (diffParts.length > 0) {
-                            finalDiff = diffParts.join('\n\n');
-                            gitDiffSuccessful = true;
-                            diffSource = 'Azure DevOps Commits Comparison API (workspace-independent)';
-                            console.log(`✅ Azure DevOps Diffs API successful: ${finalDiff.length} characters total`);
-                        } else {
-                            console.log('⚠️ No diff content extracted from Diffs API');
-                            diffSource = 'Azure DevOps Diffs API (no content)';
-                        }
-                    } else {
-                        console.log('⚠️ Azure DevOps Diffs API call failed or returned no changes');
-                        diffSource = 'Azure DevOps Diffs API (failed)';
+                // Get correct target branch HEAD commit (not PR merge target)
+                let baseCommit = pr.lastMergeTargetCommit?.commitId;
+                const sourceCommit = pr.lastMergeSourceCommit?.commitId;
+                
+                try {
+                    const branchUrl = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repository}/refs?filter=heads/${targetBranch}&api-version=7.0`;
+                    const branchResponse = await makeAzureDevOpsRequest(branchUrl, token);
+                    if (branchResponse.success && branchResponse.data.value && branchResponse.data.value.length > 0) {
+                        baseCommit = branchResponse.data.value[0].objectId;
+                        console.log(`✅ Using actual HEAD of ${targetBranch}: ${baseCommit.substring(0,7)} (instead of PR merge target: ${pr.lastMergeTargetCommit?.commitId?.substring(0,7)})`);
                     }
+                } catch (error) {
+                    console.log(`⚠️ Failed to get HEAD of ${targetBranch}, using PR merge target commit`);
                 }
 
-                // Process file changes
+                // Process file changes with simple approach
                 fileChanges = await Promise.all(actualFiles.map(async (change) => {
                     const filePath = change.item?.path || change.originalPath || 'Unknown';
+                    console.log(`📁 Processing file: ${filePath} (${change.changeType})`);
 
-                    // Try to extract diff content from git output if available
                     let diffContent = '';
                     let additions = 0;
                     let deletions = 0;
 
-                    if (gitDiffSuccessful && finalDiff) {
-                        // Extract diff for this specific file from the full git diff
-                        const filePattern = new RegExp(`diff --git a/${filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} b/${filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)(?=diff --git|$)`, 'g');
-                        const match = filePattern.exec(finalDiff);
-                        if (match) {
-                            diffContent = `diff --git a/${filePath} b/${filePath}${match[1]}`;
-                            const diffLines = diffContent.split('\n');
-                            additions = diffLines.filter(line => line.startsWith('+') && !line.startsWith('+++')).length;
-                            deletions = diffLines.filter(line => line.startsWith('-') && !line.startsWith('---')).length;
-                        }
-                    }
+                    if (baseCommit && sourceCommit) {
+                        try {
+                            // Get file content from both commits
+                            const baseContent = await getFileContent(organization, project, repository, filePath, baseCommit, token);
+                            const sourceContent = await getFileContent(organization, project, repository, filePath, sourceCommit, token);
 
-                    // Fallback to Azure DevOps change info with more details
-                    if (!diffContent) {
-                        console.log(`⚠️ No git diff for ${filePath}, fetching file contents from commits...`);
+                            if (baseContent !== null || sourceContent !== null) {
+                                // Generate unified diff using diff library
+                                diffContent = generateUnifiedDiff(filePath, baseContent || '', sourceContent || '', change.changeType);
 
-                        // Get actual file content from both commits to generate diff
-                        const baseCommit = pr.lastMergeTargetCommit?.commitId;
-                        const targetCommit = pr.lastMergeSourceCommit?.commitId;
+                                // Count changes using our counting function
+                                const counts = countDiffLines(diffContent);
+                                additions = counts.additions;
+                                deletions = counts.deletions;
 
-                        if (baseCommit && targetCommit) {
-                            try {
-                                const baseContent = await getFileContent(organization, project, repository, filePath, baseCommit, token);
-                                const targetContent = await getFileContent(organization, project, repository, filePath, targetCommit, token);
-
-                                if (baseContent !== null || targetContent !== null) {
-                                    // Generate unified diff format
-                                    diffContent = generateUnifiedDiff(filePath, baseContent || '', targetContent || '', change.changeType);
-
-                                    // Count actual changes
-                                    const diffLines = diffContent.split('\n');
-                                    additions = diffLines.filter(line => line.startsWith('+') && !line.startsWith('+++')).length;
-                                    deletions = diffLines.filter(line => line.startsWith('-') && !line.startsWith('---')).length;
-
-                                    console.log(`✅ Generated diff for ${filePath}: +${additions}/-${deletions}`);
-                                } else {
-                                    console.log(`⚠️ Could not fetch file content for ${filePath}`);
-
-                                    // Show metadata at least
-                                    diffContent = `diff --git a${filePath} b${filePath}\n--- a${filePath}\n+++ b${filePath}\n`;
-                                    diffContent += `@@ Azure DevOps API Limitation @@\n`;
-                                    diffContent += `\n`;
-                                    diffContent += `ℹ️  File: ${filePath}\n`;
-                                    diffContent += `📝 Change Type: ${change.changeType}\n`;
-                                    diffContent += `📊 Commits: ${baseCommit.substring(0, 7)} → ${targetCommit.substring(0, 7)}\n`;
-                                    diffContent += `\n`;
-                                    diffContent += `⚠️  Note: Actual diff content cannot be retrieved due to API restrictions.\n`;
-                                    diffContent += `💡 Please review this file directly in Azure DevOps:\n`;
-                                    diffContent += `   https://dev.azure.com/${organization}/${project}/_git/${repository}/pullrequest/${prId}?_a=files\n`;
-
-                                    // Use metadata for line counts if available
-                                    if (change.item?.metadata) {
-                                        additions = parseInt(change.item.metadata.additions) || 0;
-                                        deletions = parseInt(change.item.metadata.deletions) || 0;
-                                    }
-                                }
-                            } catch (err) {
-                                console.log(`❌ Error fetching file content: ${err.message}`);
-                                diffContent = `diff --git a${filePath} b${filePath}\n[Error: ${err.message}]`;
+                                console.log(`✅ Generated diff for ${filePath}: +${additions}/-${deletions}`);
+                            } else {
+                                console.log(`⚠️ Could not fetch content for ${filePath}`);
+                                diffContent = `diff --git a/${filePath} b/${filePath}\n[Could not retrieve file content]`;
                             }
-                        } else {
-                            diffContent = `diff --git a${filePath} b${filePath}\n[Missing commit information]`;
+                        } catch (err) {
+                            console.log(`❌ Error processing ${filePath}: ${err.message}`);
+                            diffContent = `diff --git a/${filePath} b/${filePath}\n[Error: ${err.message}]`;
                         }
+                    } else {
+                        console.log(`⚠️ Missing commit information for ${filePath}`);
+                        diffContent = `diff --git a/${filePath} b/${filePath}\n[Missing commit information]`;
                     }
 
                     return {
                         path: filePath,
                         changeType: change.changeType?.toLowerCase() || 'edit',
-                        sourceCommit: pr.lastMergeTargetCommit?.commitId?.substring(0, 7) || 'target',
-                        targetCommit: pr.lastMergeSourceCommit?.commitId?.substring(0, 7) || 'source',
+                        sourceCommit: baseCommit?.substring(0, 7) || 'target',
+                        targetCommit: sourceCommit?.substring(0, 7) || 'source',
                         additions: additions,
                         deletions: deletions,
                         diffContent: diffContent
@@ -523,6 +492,8 @@ async function getAzureDevOpsPR(organization, project, repository, prId, token) 
                 organization: organization,
                 project: project,
                 repository: repository,
+                sourceBranch: sourceBranch,
+                targetBranch: targetBranch,
                 sourceCommit: pr.lastMergeSourceCommit?.commitId,
                 targetCommit: pr.lastMergeTargetCommit?.commitId,
                 diffCommand: diffSource,
@@ -795,44 +766,37 @@ async function getFileContent(organization, project, repository, filePath, commi
  * Generate unified diff format from two file contents
  */
 /**
- * Generate unified diff format from two file contents using proper diff algorithm
+ * Generate unified diff format using diff library for accuracy
  */
 function generateUnifiedDiff(filePath, baseContent, targetContent, changeType) {
-    let diff = `diff --git a${filePath} b${filePath}\n`;
-
-    // Add change type headers
-    if (changeType && changeType.toLowerCase().includes('add')) {
-        diff += `new file mode 100644\n`;
-        diff += `--- /dev/null\n`;
-        diff += `+++ b${filePath}\n`;
-    } else if (changeType && changeType.toLowerCase().includes('delete')) {
-        diff += `deleted file mode 100644\n`;
-        diff += `--- a${filePath}\n`;
-        diff += `+++ /dev/null\n`;
-    } else {
-        diff += `--- a${filePath}\n`;
-        diff += `+++ b${filePath}\n`;
+    if (changeType === 'add') {
+        // File mới - tất cả là additions
+        const lines = targetContent.split('\n');
+        let diff = `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n`;
+        lines.forEach(line => {
+            diff += `+${line}\n`;
+        });
+        return diff;
     }
-
-    // Split into lines
-    const baseLines = baseContent ? baseContent.split('\n') : [];
-    const targetLines = targetContent ? targetContent.split('\n') : [];
-
-    // Use Myers diff algorithm (simplified)
-    const changes = computeDiff(baseLines, targetLines);
-
-    // Group changes into hunks
-    const hunks = groupIntoHunks(changes, baseLines, targetLines);
-
-    // Generate unified diff output
-    for (const hunk of hunks) {
-        diff += `@@ -${hunk.baseStart},${hunk.baseLength} +${hunk.targetStart},${hunk.targetLength} @@\n`;
-        for (const line of hunk.lines) {
-            diff += line + '\n';
-        }
+    
+    if (changeType === 'delete') {
+        // File bị xóa - tất cả là deletions  
+        const lines = baseContent.split('\n');
+        let diff = `--- a/${filePath}\n+++ /dev/null\n@@ -1,${lines.length} +0,0 @@\n`;
+        lines.forEach(line => {
+            diff += `-${line}\n`;
+        });
+        return diff;
     }
-
-    return diff;
+    
+    // File edit - sử dụng diff library
+    const patches = Diff.createPatch(filePath, baseContent, targetContent, '', '', {
+        context: 3, // Giống Azure DevOps (3 context lines)
+        ignoreWhitespace: true, // 🔧 Ignore whitespace-only changes
+        newlineIsToken: false   // Don't treat newlines as separate tokens
+    });
+    
+    return patches;
 }
 
 /**

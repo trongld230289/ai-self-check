@@ -5,13 +5,13 @@ const https = require('https');
 const { URL } = require('url');
 
 // Import all required functions including showAvailableModels
-const { 
-    executeAIReview, 
-    getReviewTemplate, 
-    displayReviewHeader, 
-    getUnifiedModel, 
+const {
+    executeAIReview,
+    getReviewTemplate,
+    displayReviewHeader,
+    getUnifiedModel,
     getChecklistStatusIcon,
-    showAvailableModels 
+    showAvailableModels
 } = require('./scripts/review-common');
 
 // Session tracking for "Enter twice" functionality and change scores
@@ -29,61 +29,61 @@ async function handleEnterTwiceLogic(participantType, activeEditor, stream, auto
     const fileName = path.basename(activeEditor.document.fileName);
     const sessionKey = `${participantType}-${activeEditor.document.fileName}`;
     const hasSeenQuestion = chatSessions.get(sessionKey) || false;
-    
+
     console.log(`🔍 Session check: ${sessionKey} = ${hasSeenQuestion}`);
-    
+
     if (hasSeenQuestion) {
         // Second Enter - Auto proceed like clicking "Yes"
         const emoji = participantType === 'review-file' ? '📁' : '🔍';
         const action = participantType === 'review-file' ? 'File' : 'Changes';
-        
+
         stream.markdown(`# ${emoji} Reviewing ${action}: \`${fileName}\`\n\n`);
         stream.markdown(`📂 **Auto-proceeding with:** \`${activeEditor.document.fileName}\`\n\n`);
         stream.markdown(`🚀 **Starting ${action.toLowerCase()} review...**\n\n`);
-        
+
         // Clear the session flag
         chatSessions.delete(sessionKey);
-        
+
         // Call the auto review function
         await autoReviewCallback();
         return true; // Handled, don't continue
     }
-    
+
     // First time - Show question and set session flag
     chatSessions.set(sessionKey, true);
     console.log(`🔍 Session set: ${sessionKey} = true`);
-    
+
     const emoji = participantType === 'review-file' ? '📁' : '🔍';
     const title = participantType === 'review-file' ? 'File Review Assistant' : 'Code Review Assistant';
     const confirmCommand = participantType === 'review-file' ? 'aiSelfCheck.confirmFileReview' : 'aiSelfCheck.confirmChangesReview';
     const helpCommand = participantType === 'review-file' ? 'aiSelfCheck.showFileHelp' : 'aiSelfCheck.showChangesHelp';
     const buttonText = participantType === 'review-file' ? `✅ Yes, review file ${fileName}` : `✅ Yes, review changes in ${fileName}`;
-    const questionText = participantType === 'review-file' ? 
+    const questionText = participantType === 'review-file' ?
         `**Question:** Do you want to review the file \`${fileName}\`?\n\n` :
         `**Question:** Do you want to review git changes for \`${fileName}\`?\n\n`;
-    
+
     stream.markdown(`# ${emoji} ${title}\n\n`);
     stream.markdown(`**Current file:** \`${fileName}\`\n\n`);
-    
+
     // Create Yes/No buttons for confirmation
     stream.button({
         command: confirmCommand,
         title: buttonText,
         arguments: [activeEditor.document.fileName]
     });
-    
+
     stream.markdown('\n');
-    
+
     stream.button({
         command: helpCommand,
         title: '❌ No, show help instead',
         arguments: []
     });
-    
+
     stream.markdown('\n\n');
     stream.markdown(questionText);
     stream.markdown('💡 **Tip:** Press Enter again to auto-proceed\n');
-    
+
     return false; // Don't continue, show question first
 }
 
@@ -94,27 +94,27 @@ async function setupAzureDevOpsSettings() {
     try {
         // Open User Settings JSON
         await vscode.commands.executeCommand('workbench.action.openSettingsJson');
-        
+
         // Show info message with instructions
         const settingsTemplate = `{
     "aiSelfCheck.azureDevOps.personalAccessToken": "YOUR_TOKEN_HERE",
     "aiSelfCheck.azureDevOps.organization": "YOUR_ORG_HERE",
     "aiSelfCheck.azureDevOps.defaultProject": "YOUR_PROJECT_HERE"
 }`;
-        
+
         const action = await vscode.window.showInformationMessage(
             'Settings JSON opened. Copy và paste template below vào cuối file (trước dấu }).',
             'Copy Template',
             'Open Azure DevOps'
         );
-        
+
         if (action === 'Copy Template') {
             await vscode.env.clipboard.writeText(settingsTemplate);
             vscode.window.showInformationMessage('Template đã copy vào clipboard!');
         } else if (action === 'Open Azure DevOps') {
             await vscode.env.openExternal(vscode.Uri.parse('https://dev.azure.com/BusinessWebUS/_usersSettings/tokens'));
         }
-        
+
     } catch (error) {
         vscode.window.showErrorMessage(`Error opening settings: ${error.message}`);
     }
@@ -125,7 +125,7 @@ async function setupAzureDevOpsSettings() {
  */
 function activate(context) {
     console.log('Review Helper extension is now active!');
-    
+
     // Auto-generate templates on first run
     ensureTemplatesExist(context);
 
@@ -140,7 +140,7 @@ function activate(context) {
         const sessionKey = `review-changes-${filePath}`;
         chatSessions.set(sessionKey, true);
         console.log(`🔍 Confirmation button clicked - Session set: ${sessionKey} = true`);
-        
+
         // Open chat and trigger changes review for the specific file
         await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
         // Send the file path to @review-changes (will now proceed directly due to session flag)
@@ -154,7 +154,7 @@ function activate(context) {
         const sessionKey = `review-file-${filePath}`;
         chatSessions.set(sessionKey, true);
         console.log(`📁 Confirmation button clicked - Session set: ${sessionKey} = true`);
-        
+
         // Open chat and trigger file review for the specific file
         await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
         // Send the file path to @review-file (will now proceed directly due to session flag)
@@ -178,7 +178,7 @@ function activate(context) {
 
     let showFileHelp = vscode.commands.registerCommand('aiSelfCheck.showFileHelp', async () => {
         vscode.window.showInformationMessage(
-            'Code Review Helper - @review-file', 
+            'Code Review Helper - @review-file',
             {
                 modal: false,
                 detail: `Usage examples:
@@ -281,14 +281,14 @@ function activate(context) {
     const viewPrDiffCommand = vscode.commands.registerCommand('aiSelfCheck.viewPrDiff', async (diffId) => {
         try {
             console.log(`📄 Opening diff webview for: ${diffId}`);
-            
+
             // Get diff data from global cache
             const diffData = global.prDiffCache?.[diffId];
             if (!diffData) {
                 vscode.window.showErrorMessage('Diff data not found. Please refresh the PR review.');
                 return;
             }
-            
+
             // Create webview panel
             const panel = vscode.window.createWebviewPanel(
                 'prDiffView',
@@ -299,10 +299,10 @@ function activate(context) {
                     retainContextWhenHidden: true
                 }
             );
-            
+
             // Set webview content
             panel.webview.html = await getWebviewContent(diffData);
-            
+
         } catch (error) {
             console.error('Error opening diff webview:', error);
             vscode.window.showErrorMessage(`Failed to open diff: ${error.message}`);
@@ -313,15 +313,15 @@ function activate(context) {
     const viewAllPrDiffsCommand = vscode.commands.registerCommand('aiSelfCheck.viewAllPrDiffs', async (prId) => {
         try {
             console.log(`📊 Opening all diffs for PR: ${prId}`);
-            
+
             // Get all diff data for this PR from global cache
             const allDiffIds = Object.keys(global.prDiffCache || {}).filter(id => id.startsWith(`pr${prId}_`));
-            
+
             if (allDiffIds.length === 0) {
                 vscode.window.showErrorMessage('No diff data found. Please refresh the PR review.');
                 return;
             }
-            
+
             // Create webview panel with tabs
             const panel = vscode.window.createWebviewPanel(
                 'prAllDiffsView',
@@ -332,10 +332,10 @@ function activate(context) {
                     retainContextWhenHidden: true
                 }
             );
-            
+
             // Generate HTML with tabs for all diffs
             panel.webview.html = await getAllDiffsWebviewContent(prId, allDiffIds);
-            
+
         } catch (error) {
             console.error('Error opening all diffs webview:', error);
             vscode.window.showErrorMessage(`Failed to open diffs: ${error.message}`);
@@ -354,7 +354,7 @@ function activate(context) {
         showFileHelp,
         reviewFileCommand,
         reviewChangesCommand,
-        reviewChangesParticipant, 
+        reviewChangesParticipant,
         reviewFileParticipant,
         reviewPrParticipant,
         reviewPullRequest,
@@ -364,7 +364,7 @@ function activate(context) {
         viewPrDiffCommand,
         viewAllPrDiffsCommand
     ].filter(item => item !== null && item !== undefined);
-    
+
     context.subscriptions.push(...subscriptions);
 }
 
@@ -383,7 +383,7 @@ async function ensureTemplatesExist(context) {
 
         const instructionsPath = path.join(workspaceFolder.uri.fsPath, 'instructions');
         const extensionTemplatesPath = path.join(context.extensionPath, 'templates');
-        
+
         // Create instructions folder if it doesn't exist
         if (!fs.existsSync(instructionsPath)) {
             fs.mkdirSync(instructionsPath, { recursive: true });
@@ -392,18 +392,18 @@ async function ensureTemplatesExist(context) {
 
         // Template files to process
         const templateFiles = ['review-file.md', 'review-changes.md', 'quick-review-pr.md'];
-        
+
         for (const templateFile of templateFiles) {
             const sourcePath = path.join(extensionTemplatesPath, templateFile);
             const destPath = path.join(instructionsPath, templateFile);
-            
+
             // Only copy if destination doesn't exist (don't overwrite user customizations)
             if (!fs.existsSync(destPath) && fs.existsSync(sourcePath)) {
                 fs.copyFileSync(sourcePath, destPath);
                 console.log(`Generated template: ${templateFile}`);
             }
         }
-        
+
         console.log('Template generation completed');
     } catch (error) {
         console.error('Error generating templates:', error);
@@ -424,21 +424,21 @@ async function ensureTemplatesExist(context) {
  */
 function generateMinimap(originalLines, modifiedLines) {
     console.log('🗺️ Generating minimap...');
-    
+
     // Early return for empty files
     if (!modifiedLines?.length && !originalLines?.length) {
         console.log('⚠️ No file content for minimap');
         return '';
     }
-    
+
     // Get document statistics
     const totalLines = Math.max(originalLines?.length || 0, modifiedLines?.length || 0);
     console.log(`📊 Document stats: ${totalLines} total lines`);
-    
+
     // STEP 1: Verify each line is actually changed before adding to map
     // We'll only mark lines that are actually added/removed, not just have the class
     const changes = [];
-    
+
     // Process added lines (right side/modified) - only if they're actually new content
     if (modifiedLines?.length) {
         modifiedLines.forEach((line, index) => {
@@ -448,7 +448,7 @@ function generateMinimap(originalLines, modifiedLines) {
                 // Double check it's not just whitespace change or identical content
                 const matchingOriginalLine = originalLines?.find(ol => ol.lineNum === line.lineNum);
                 const isRealChange = !matchingOriginalLine || matchingOriginalLine.content?.trim() !== line.content?.trim();
-                
+
                 if (isRealChange) {
                     // Calculate normalized position as percentage of viewport
                     const position = ((index + 1) / modifiedLines.length) * 100;
@@ -466,7 +466,7 @@ function generateMinimap(originalLines, modifiedLines) {
             }
         });
     }
-    
+
     // Process removed lines (left side/original) - only if they're actually removed content
     if (originalLines?.length) {
         originalLines.forEach((line, index) => {
@@ -475,7 +475,7 @@ function generateMinimap(originalLines, modifiedLines) {
                 // Double check it's not just whitespace change or identical content  
                 const matchingModifiedLine = modifiedLines?.find(ml => ml.lineNum === line.lineNum);
                 const isRealChange = !matchingModifiedLine || matchingModifiedLine.content?.trim() !== line.content?.trim();
-                
+
                 if (isRealChange) {
                     // Calculate normalized position as percentage of viewport
                     const position = ((index + 1) / originalLines.length) * 100;
@@ -493,44 +493,44 @@ function generateMinimap(originalLines, modifiedLines) {
             }
         });
     }
-    
+
     // STEP 2: Handle overlapping changes (priority: added > removed)
     // Group by similar positions (within 1% tolerance)
     const positionGroups = new Map();
-    
+
     changes.forEach(change => {
         // Round to nearest 0.5% for grouping similar positions
         const roundedPos = Math.round(change.position * 2) / 2; // More precise positioning
-        
+
         if (!positionGroups.has(roundedPos)) {
             positionGroups.set(roundedPos, []);
         }
         positionGroups.get(roundedPos).push(change);
     });
-    
+
     // STEP 3: Generate HTML - prioritizing added > removed when at same position
     let minimapHtml = '';
     let addedCount = 0;
     let removedCount = 0;
-    
+
     // Process each position group - ordered by position
     const sortedPositions = Array.from(positionGroups.keys()).sort((a, b) => a - b);
-    
+
     sortedPositions.forEach(position => {
         const changesAtPosition = positionGroups.get(position);
-        
+
         // Check if there's any 'added' change in this group
         const hasAdded = changesAtPosition.some(c => c.type === 'added');
-        
+
         // If we have both added and removed at same position, prefer added (green)
-        const change = hasAdded 
+        const change = hasAdded
             ? changesAtPosition.find(c => c.type === 'added')
             : changesAtPosition[0];
-            
+
         // Generate dot for this position
         const className = change.type === 'added' ? 'added' : 'removed';
         minimapHtml += `<div class="minimap-line ${className}" style="top: ${change.position.toFixed(1)}%;" title="Line ${change.lineNum}: ${change.type}"></div>`;
-        
+
         // Update counters and log with more details
         if (change.type === 'added') {
             addedCount++;
@@ -540,11 +540,11 @@ function generateMinimap(originalLines, modifiedLines) {
             console.log(`📕 Removed dot: Line ${change.lineNum} (idx: ${change.visibleIndex}) at ${change.position.toFixed(1)}% - "${change.content}"`);
         }
     });
-    
+
     // Report results
     const totalDots = addedCount + removedCount;
     console.log(`✅ Generated minimap with ${totalDots} dots (${addedCount} added, ${removedCount} removed)`);
-    
+
     return minimapHtml;
 }
 
@@ -555,25 +555,25 @@ function generateMinimap(originalLines, modifiedLines) {
  */
 async function generateDiffHtml(diffData) {
     const { path: filePath, diff } = diffData;
-    
+
     // Parse diff to reconstruct full file content for both sides with enhanced method
     const { originalLines, modifiedLines } = await parseFullDiffContentEnhanced(diff, filePath);
-    
+
     // Generate side-by-side HTML with full file content
     let leftSide = '';
     let rightSide = '';
     const maxLines = Math.max(originalLines.length, modifiedLines.length);
-    
+
     for (let i = 0; i < maxLines; i++) {
         const originalLine = originalLines[i] || { content: '', lineNum: '', type: 'empty' };
         const modifiedLine = modifiedLines[i] || { content: '', lineNum: '', type: 'empty' };
-        
+
         // Left side (original)
         leftSide += `<div class="diff-line ${originalLine.type}">
             <span class="line-num">${originalLine.lineNum}</span>
             <span class="line-content">${escapeHtml(originalLine.content)}</span>
         </div>\n`;
-        
+
         // Right side (modified) with change indicator
         const changeIndicator = getChangeIndicator(modifiedLine.type);
         rightSide += `<div class="diff-line ${modifiedLine.type}">
@@ -582,12 +582,12 @@ async function generateDiffHtml(diffData) {
             <span class="change-indicator ${modifiedLine.type}">${changeIndicator}</span>
         </div>\n`;
     }
-    
+
     // Generate minimap data
     console.log(`🔍 Generating minimap for ${filePath}...`);
     const minimapData = generateMinimap(originalLines, modifiedLines);
     console.log(`📊 Minimap data for ${filePath}:`, minimapData);
-    
+
     return `
         <div class="diff-side-by-side">
             <div class="diff-side left-side">
@@ -609,10 +609,10 @@ async function generateDiffHtml(diffData) {
 
 async function getWebviewContent(diffData) {
     const { path: filePath, changeType, additions, deletions } = diffData;
-    
+
     // Use the new shared function
     const diffHtml = await generateDiffHtml(diffData);
-    
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -929,6 +929,102 @@ async function getWebviewContent(diffData) {
         .diff-side:hover .diff-remove {
             background-color: var(--vscode-list-hoverBackground);
         }
+        
+        /* Toggle button styles */
+        .view-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .toggle-group {
+            display: flex;
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .toggle-btn {
+            padding: 6px 12px;
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            min-width: 85px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        .toggle-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .toggle-btn.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        
+        .toggle-label {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        /* Inline mode styles */
+        .diff-inline {
+            display: block;
+        }
+        
+        .diff-inline .diff-side-by-side {
+            display: none;
+        }
+        
+        .diff-inline-content {
+            padding: 0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            overflow: auto;
+            height: calc(100vh - 120px);
+        }
+        
+        .diff-inline .diff-line {
+            display: flex;
+            min-height: 20px;
+            line-height: 20px;
+            border-left: 3px solid transparent;
+        }
+        
+        .diff-inline .diff-line.added {
+            background-color: rgba(46, 160, 67, 0.15);
+            border-left-color: #2ea043;
+        }
+        
+        .diff-inline .diff-line.removed {
+            background-color: rgba(248, 81, 73, 0.15);
+            border-left-color: #f85149;
+        }
+        
+        .diff-inline .diff-line.context {
+            background-color: var(--vscode-editor-background);
+        }
+        
+        .diff-inline .line-num {
+            width: 60px;
+            text-align: right;
+            padding-right: 8px;
+            color: var(--vscode-editorLineNumber-foreground);
+            background-color: var(--vscode-editorGutter-background);
+            user-select: none;
+            flex-shrink: 0;
+        }
+        
+        .diff-inline .line-content {
+            flex: 1;
+            padding-left: 8px;
+            white-space: pre;
+        }
     </style>
 </head>
 <body>
@@ -939,9 +1035,19 @@ async function getWebviewContent(diffData) {
             <span class="stats-badge badge-add">+${additions}</span>
             <span class="stats-badge badge-remove">-${deletions}</span>
         </div>
+        <div class="view-toggle">
+            <span class="toggle-label">View:</span>
+            <div class="toggle-group">
+                <button class="toggle-btn active" data-mode="side-by-side">📊 Side by side</button>
+                <button class="toggle-btn" data-mode="inline">📝 Inline</button>
+            </div>
+        </div>
     </div>
-    <div class="diff-container">
+    <div class="diff-container" id="diffContainer">
         ${diffHtml}
+        <div class="diff-inline-content" id="inlineContent" style="display: none;">
+            <!-- Inline diff content will be generated here -->
+        </div>
     </div>
     
     <script>
@@ -1082,6 +1188,103 @@ async function getWebviewContent(diffData) {
                 // Initial viewport update
                 setTimeout(updateMinimapViewport, 100);
             }
+            
+            // Toggle functionality for inline/side-by-side view
+            const toggleButtons = document.querySelectorAll('.toggle-btn');
+            const diffContainer = document.getElementById('diffContainer');
+            const inlineContent = document.getElementById('inlineContent');
+            
+            toggleButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const mode = this.dataset.mode;
+                    
+                    // Update button states
+                    toggleButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    if (mode === 'inline') {
+                        // Switch to inline mode
+                        diffContainer.classList.add('diff-inline');
+                        generateInlineContent();
+                        inlineContent.style.display = 'block';
+                    } else {
+                        // Switch to side-by-side mode
+                        diffContainer.classList.remove('diff-inline');
+                        inlineContent.style.display = 'none';
+                    }
+                });
+            });
+            
+            function generateInlineContent() {
+                const leftLines = document.querySelectorAll('.left-side .diff-line');
+                const rightLines = document.querySelectorAll('.right-side .diff-line');
+                let inlineHtml = '';
+                
+                // Helper function to check if content has meaningful text
+                function hasTextContent(content) {
+                    if (!content) return false;
+                    // Remove HTML tags and check if there's meaningful text
+                    const textOnly = content.replace(/<[^>]*>/g, '').trim();
+                    // Skip empty lines, lines with just +/-, or lines that are just image tags
+                    return textOnly.length > 0 && 
+                           textOnly !== '+' && 
+                           textOnly !== '-' && 
+                           !textOnly.match(/^\s*$/);
+                }
+                
+                // Combine left and right side lines into inline format
+                const maxLines = Math.max(leftLines.length, rightLines.length);
+                
+                for (let i = 0; i < maxLines; i++) {
+                    const leftLine = leftLines[i];
+                    const rightLine = rightLines[i];
+                    
+                    // Handle removed lines (from left side)
+                    if (leftLine && leftLine.classList.contains('diff-remove')) {
+                        const lineNum = leftLine.querySelector('.line-num')?.textContent || '';
+                        const content = leftLine.querySelector('.line-content')?.textContent || '';
+                        
+                        // Only show if there's meaningful text content
+                        if (hasTextContent(content)) {
+                            inlineHtml += '<div class="diff-line removed">' +
+                                '<span class="line-num">' + lineNum + '</span>' +
+                                '<span class="line-content">-' + content + '</span>' +
+                            '</div>';
+                        }
+                    }
+                    
+                    // Handle added lines (from right side)
+                    if (rightLine && rightLine.classList.contains('diff-add')) {
+                        const lineNum = rightLine.querySelector('.line-num')?.textContent || '';
+                        const content = rightLine.querySelector('.line-content')?.textContent || '';
+                        
+                        // Only show if there's meaningful text content
+                        if (hasTextContent(content)) {
+                            inlineHtml += '<div class="diff-line added">' +
+                                '<span class="line-num">' + lineNum + '</span>' +
+                                '<span class="line-content">+' + content + '</span>' +
+                            '</div>';
+                        }
+                    }
+                    
+                    // Handle context lines (show once, preferring right side)
+                    const contextLine = rightLine || leftLine;
+                    if (contextLine && contextLine.classList.contains('diff-context')) {
+                        const lineNum = contextLine.querySelector('.line-num')?.textContent || '';
+                        const content = contextLine.querySelector('.line-content')?.textContent || '';
+                        
+                        // Only show if there's meaningful text content
+                        if (hasTextContent(content)) {
+                            inlineHtml += '<div class="diff-line context">' +
+                                '<span class="line-num">' + lineNum + '</span>' +
+                                '<span class="line-content">' + content + '</span>' +
+                            '</div>';
+                        }
+                    }
+                }
+                
+                inlineContent.innerHTML = inlineHtml;
+            }
         });
     </script>
 </body>
@@ -1098,16 +1301,16 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
     // Generate tab buttons and tab content
     let tabButtons = '';
     let tabContents = '';
-    
+
     // Use for loop instead of forEach to handle async operations
     for (let index = 0; index < diffIds.length; index++) {
         const diffId = diffIds[index];
         const diffData = global.prDiffCache[diffId];
         if (!diffData) continue;
-        
+
         const fileName = diffData.path.split('/').pop();
         const isActive = index === 0 ? 'active' : '';
-        
+
         // Tab button
         tabButtons += `
             <button class="tab-button ${isActive}" onclick="openTab(event, 'tab${index}')">
@@ -1118,10 +1321,10 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
                 </span>
             </button>
         `;
-        
+
         // Tab content - Use shared diff generation function
         const diffHtml = await generateDiffHtml(diffData);
-        
+
         tabContents += `
             <div id="tab${index}" class="tab-content ${isActive}">
                 <div class="file-header">
@@ -1134,11 +1337,14 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
                 </div>
                 <div class="diff-container">
                     ${diffHtml}
+                    <div class="diff-inline-content" id="inlineContent${index}">
+                        <!-- Inline diff content will be generated here -->
+                    </div>
                 </div>
             </div>
         `;
     }
-    
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1186,8 +1392,8 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
         .toggle-switch {
             position: relative;
             display: inline-block;
-            width: 75px;
-            height: 32px;
+            width: 71px;
+            height: 26px;
             cursor: pointer;
         }
         
@@ -1215,10 +1421,10 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
         .slider:before {
             position: absolute;
             content: "";
-            height: 24px;
-            width: 24px;
+            height: 18px;
+            width: 18px;
             left: 4px;
-            bottom: 4px;
+            top: 4px;
             background-color: white;
             border-radius: 50%;
             transition: all 0.3s ease;
@@ -1673,6 +1879,103 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
             cursor: grabbing;
             background-color: rgba(100, 100, 100, 0.4);
         }
+        
+        /* Toggle button styles for view mode */
+        .view-toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .view-mode-toggle {
+            display: flex;
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .view-mode-btn {
+            padding: 6px 12px;
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            min-width: 85px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        .view-mode-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .view-mode-btn.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        
+        /* Inline mode styles for tabbed view */
+        .tab-content.diff-inline .diff-side-by-side {
+            display: none !important;
+        }
+        
+        .tab-content.diff-inline .diff-inline-content {
+            display: block !important;
+            padding: 8px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            overflow: auto;
+            height: calc(100vh - 170px);
+            background-color: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+        }
+        
+        .tab-content .diff-inline-content {
+            display: none;
+        }
+        
+        .diff-inline-content .diff-line {
+            display: flex !important;
+            min-height: 20px;
+            line-height: 20px;
+            border-left: 3px solid transparent;
+            padding: 2px 4px;
+            white-space: pre;
+            font-size: 13px;
+        }
+        
+        .diff-inline-content .diff-line.added {
+            background-color: rgba(46, 160, 67, 0.15) !important;
+            border-left-color: #2ea043 !important;
+        }
+        
+        .diff-inline-content .diff-line.removed {
+            background-color: rgba(248, 81, 73, 0.15) !important;
+            border-left-color: #f85149 !important;
+        }
+        
+        .diff-inline-content .diff-line.context {
+            background-color: var(--vscode-editor-background) !important;
+        }
+        
+        .diff-inline-content .line-num {
+            width: 60px;
+            text-align: right;
+            padding-right: 8px;
+            color: var(--vscode-editorLineNumber-foreground);
+            background-color: var(--vscode-editorGutter-background);
+            user-select: none;
+            flex-shrink: 0;
+            font-weight: normal;
+        }
+        
+        .diff-inline-content .line-content {
+            flex: 1;
+            padding-left: 8px;
+            color: var(--vscode-editor-foreground);
+        }
     </style>
     <script>
         function openTab(evt, tabId) {
@@ -1905,19 +2208,177 @@ async function getAllDiffsWebviewContent(prId, diffIds) {
             if (activeTab) {
                 setupSyncScrolling(activeTab.id);
             }
+            
+            // Setup inline mode toggle
+            const viewModeButtons = document.querySelectorAll('.view-mode-btn');
+            viewModeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const mode = this.dataset.mode;
+                    
+                    // Update button states
+                    viewModeButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Apply mode to all tab contents
+                    const tabContents = document.querySelectorAll('.tab-content');
+                    tabContents.forEach((tab, index) => {
+                        if (mode === 'inline') {
+                            tab.classList.add('diff-inline');
+                            generateInlineContentForTab(tab, index);
+                        } else {
+                            tab.classList.remove('diff-inline');
+                        }
+                    });
+                });
+            });
         });
+        
+        function generateInlineContentForTab(tabElement, tabIndex) {
+            console.log('🔧 Generating inline content for tab:', tabIndex);
+            
+            const leftLines = tabElement.querySelectorAll('.left-side .diff-line');
+            const rightLines = tabElement.querySelectorAll('.right-side .diff-line');
+            const inlineContainer = tabElement.querySelector('#inlineContent' + tabIndex);
+            
+            console.log('📊 Found elements:', {
+                leftLines: leftLines.length,
+                rightLines: rightLines.length,
+                inlineContainer: !!inlineContainer
+            });
+            
+            if (!inlineContainer) {
+                console.error('❌ Inline container not found for tab', tabIndex);
+                return;
+            }
+            
+            let inlineHtml = '';
+            const maxLines = Math.max(leftLines.length, rightLines.length);
+            console.log('📏 Max lines to process:', maxLines);
+            
+            // Helper function to check if content has meaningful text
+            function hasTextContent(content) {
+                if (!content) return false;
+                // Remove HTML tags and check if there's meaningful text
+                const textOnly = content.replace(/<[^>]*>/g, '').trim();
+                // Skip empty lines, lines with just +/-, or lines that are just image tags
+                return textOnly.length > 0 && 
+                       textOnly !== '+' && 
+                       textOnly !== '-' && 
+                       !textOnly.match(/^\s*$/);
+            }
+            
+            // If no diff lines found, try different selectors
+            if (maxLines === 0) {
+                console.log('🔍 No diff lines found, trying alternative selectors...');
+                const allLines = tabElement.querySelectorAll('.diff-line');
+                console.log('📄 All diff lines found:', allLines.length);
+                
+                // Fallback: show all lines as context
+                allLines.forEach((line, i) => {
+                    const lineNum = line.querySelector('.line-num')?.textContent || i + 1;
+                    const content = line.querySelector('.line-content')?.textContent || line.textContent || '';
+                    
+                    // Skip lines without meaningful text content
+                    if (!hasTextContent(content)) {
+                        return;
+                    }
+                    
+                    let className = 'context';
+                    let displayContent = content;
+                    if (line.classList.contains('diff-add') || line.classList.contains('added')) {
+                        className = 'added';
+                        displayContent = '+' + content;
+                    } else if (line.classList.contains('diff-remove') || line.classList.contains('removed')) {
+                        className = 'removed';
+                        displayContent = '-' + content;
+                    }
+                    
+                    inlineHtml += '<div class="diff-line ' + className + '">' +
+                        '<span class="line-num">' + lineNum + '</span>' +
+                        '<span class="line-content">' + displayContent + '</span>' +
+                    '</div>';
+                });
+            } else {
+                // Original logic for side-by-side processing
+                for (let i = 0; i < maxLines; i++) {
+                    const leftLine = leftLines[i];
+                    const rightLine = rightLines[i];
+                    
+                    // Handle removed lines (from left side)
+                    if (leftLine && (leftLine.classList.contains('diff-remove') || leftLine.classList.contains('removed'))) {
+                        const lineNum = leftLine.querySelector('.line-num')?.textContent || '';
+                        const content = leftLine.querySelector('.line-content')?.textContent || '';
+                        
+                        // Only show if there's meaningful text content
+                        if (hasTextContent(content)) {
+                            inlineHtml += '<div class="diff-line removed">' +
+                                '<span class="line-num">' + lineNum + '</span>' +
+                                '<span class="line-content">-' + content + '</span>' +
+                            '</div>';
+                        }
+                    }
+                    
+                    // Handle added lines (from right side)
+                    if (rightLine && (rightLine.classList.contains('diff-add') || rightLine.classList.contains('added'))) {
+                        const lineNum = rightLine.querySelector('.line-num')?.textContent || '';
+                        const content = rightLine.querySelector('.line-content')?.textContent || '';
+                        
+                        // Only show if there's meaningful text content
+                        if (hasTextContent(content)) {
+                            inlineHtml += '<div class="diff-line added">' +
+                                '<span class="line-num">' + lineNum + '</span>' +
+                                '<span class="line-content">+' + content + '</span>' +
+                            '</div>';
+                        }
+                    }
+                    
+                    // Handle context lines (show once, preferring right side)
+                    const contextLine = rightLine || leftLine;
+                    if (contextLine && (contextLine.classList.contains('diff-context') || contextLine.classList.contains('context'))) {
+                        const lineNum = contextLine.querySelector('.line-num')?.textContent || '';
+                        const content = contextLine.querySelector('.line-content')?.textContent || '';
+                        
+                        // Only show if there's meaningful text content
+                        if (hasTextContent(content)) {
+                            inlineHtml += '<div class="diff-line context">' +
+                                '<span class="line-num">' + lineNum + '</span>' +
+                                '<span class="line-content">' + content + '</span>' +
+                            '</div>';
+                        }
+                    }
+                }
+            }
+            
+            console.log('📝 Generated inline HTML length:', inlineHtml.length);
+            
+            if (inlineHtml.length === 0) {
+                inlineHtml = '<div class="diff-line context">' +
+                    '<span class="line-num">-</span>' +
+                    '<span class="line-content">No diff content available for inline view</span>' +
+                '</div>';
+            }
+            
+            inlineContainer.innerHTML = inlineHtml;
+            console.log('✅ Inline content generated for tab', tabIndex);
+        }
     </script>
 </head>
 <body>
     <div class="header">
         <div class="header-content">
             <h2>📊 PR #${prId} - All Diffs (${diffIds.length} files)</h2>
-            <label class="toggle-switch" for="viewToggle">
-                <input type="checkbox" id="viewToggle" onchange="toggleViewMode()">
-                <span class="slider">
-                    <span class="slider-text">FULL</span>
-                </span>
-            </label>
+            <div class="view-toggle-group">
+                <div class="view-mode-toggle">
+                    <button class="view-mode-btn active" data-mode="side-by-side">📊 Side by side</button>
+                    <button class="view-mode-btn" data-mode="inline">📝 Inline</button>
+                </div>
+                <label class="toggle-switch" for="viewToggle">
+                    <input type="checkbox" id="viewToggle" onchange="toggleViewMode()">
+                    <span class="slider">
+                        <span class="slider-text">FULL</span>
+                    </span>
+                </label>
+            </div>
         </div>
     </div>
     <div class="tabs">
@@ -1940,17 +2401,17 @@ async function getFullFileContent(filePath) {
             console.log('❌ No workspace folder found');
             return [];
         }
-        
+
         // Try multiple path variations
         const pathVariations = [
             path.join(workspaceFolder.uri.fsPath, filePath),
             path.join(workspaceFolder.uri.fsPath, filePath.replace(/^\//, '')),
             path.join(workspaceFolder.uri.fsPath, 'src', filePath.replace(/^.*\/src\//, ''))
         ];
-        
+
         console.log(`🔍 Trying to read file: ${filePath}`);
         console.log(`📁 Workspace: ${workspaceFolder.uri.fsPath}`);
-        
+
         for (const fullPath of pathVariations) {
             console.log(`🔍 Checking path: ${fullPath}`);
             if (fs.existsSync(fullPath)) {
@@ -1960,7 +2421,7 @@ async function getFullFileContent(filePath) {
                 return lines;
             }
         }
-        
+
         console.log(`❌ File not found in any path variation`);
     } catch (error) {
         console.error('❌ Error reading file:', error);
@@ -1980,17 +2441,17 @@ async function getFullFileContentFromGit(filePath, revision = 'HEAD') {
         if (!workspaceFolder) {
             return [];
         }
-        
+
         const { exec } = require('child_process');
         const util = require('util');
         const execAsync = util.promisify(exec);
-        
+
         // Try to get file content from git
         const command = `git show ${revision}:${filePath}`;
         const { stdout } = await execAsync(command, {
             cwd: workspaceFolder.uri.fsPath
         });
-        
+
         return stdout.split('\n');
     } catch (error) {
         console.error('Error reading file from git:', error);
@@ -2008,13 +2469,13 @@ async function getFullFileContentFromGit(filePath, revision = 'HEAD') {
 async function parseFullDiffContentEnhanced(diff, filePath) {
     console.log('🔍 parseFullDiffContentEnhanced called for cross-repo PR:', filePath);
     console.log('📄 Diff content preview:', diff.substring(0, 500) + '...');
-    
+
     // For cross-repo PR reviews from Azure DevOps, reconstruct from diff directly
     const { originalLines, modifiedLines } = reconstructFromGitDiff(diff, filePath);
-    
+
     if (originalLines.length === 0 && modifiedLines.length === 0) {
         console.log('⚠️ Could not reconstruct content from diff, creating minimal placeholder');
-        
+
         const fileName = path.basename(filePath);
         const placeholderLines = [
             `// ${fileName}`,
@@ -2024,7 +2485,7 @@ async function parseFullDiffContentEnhanced(diff, filePath) {
             '// Actual file changes are shown below',
             '// Please view full context in Azure DevOps if needed'
         ];
-        
+
         return {
             originalLines: placeholderLines.map((line, i) => ({
                 content: line,
@@ -2038,7 +2499,7 @@ async function parseFullDiffContentEnhanced(diff, filePath) {
             }))
         };
     }
-    
+
     console.log(`✅ Reconstructed from diff: ${originalLines.length} original, ${modifiedLines.length} modified lines`);
     return { originalLines, modifiedLines };
 }
@@ -2051,21 +2512,21 @@ async function parseFullDiffContentEnhanced(diff, filePath) {
  */
 function reconstructFromGitDiff(diff, filePath) {
     console.log('� Reconstructing file content from git diff for cross-repo PR');
-    
+
     const diffLines = diff.split('\n');
     const originalLines = [];
     const modifiedLines = [];
-    
+
     let oldLineNum = 1;
     let newLineNum = 1;
     let inHunk = false;
-    
+
     for (const line of diffLines) {
         // Skip diff headers
         if (line.startsWith('diff --git') || line.startsWith('+++') || line.startsWith('---') || line.startsWith('index ')) {
             continue;
         }
-        
+
         if (line.startsWith('@@')) {
             // Parse hunk header to get starting line numbers
             const hunkMatch = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
@@ -2077,7 +2538,7 @@ function reconstructFromGitDiff(diff, filePath) {
             }
             continue;
         }
-        
+
         if (inHunk) {
             if (line.startsWith(' ')) {
                 // Context line (unchanged)
@@ -2139,10 +2600,10 @@ function reconstructFromGitDiff(diff, filePath) {
             }
         }
     }
-    
+
     console.log(`✅ Reconstructed ${originalLines.length} original lines, ${modifiedLines.length} modified lines`);
     console.log(`📊 Changes: ${originalLines.filter(l => l.type === 'removed').length} removed, ${modifiedLines.filter(l => l.type === 'added').length} added`);
-    
+
     return { originalLines, modifiedLines };
 }
 
@@ -2155,23 +2616,23 @@ function parseFullDiffContent(diff) {
     const diffLines = diff.split('\n');
     const originalLines = [];
     const modifiedLines = [];
-    
+
     // Try to extract more context from the diff
     const hunks = [];
     let currentHunk = null;
-    
+
     for (const line of diffLines) {
         // Skip diff headers
         if (line.startsWith('diff --git') || line.startsWith('+++') || line.startsWith('---') || line.startsWith('index ')) {
             continue;
         }
-        
+
         if (line.startsWith('@@')) {
             // Save previous hunk
             if (currentHunk) {
                 hunks.push(currentHunk);
             }
-            
+
             // Parse hunk header
             const hunkMatch = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)/);
             if (hunkMatch) {
@@ -2188,22 +2649,22 @@ function parseFullDiffContent(diff) {
             currentHunk.lines.push(line);
         }
     }
-    
+
     // Save last hunk
     if (currentHunk) {
         hunks.push(currentHunk);
     }
-    
+
     // If no hunks found, fall back to simple line-by-line parsing
     if (hunks.length === 0) {
         let oldLineNum = 1;
         let newLineNum = 1;
-        
+
         for (const line of diffLines) {
             if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('@@')) {
                 continue;
             }
-            
+
             if (line.startsWith('+')) {
                 modifiedLines.push({
                     content: line.substring(1),
@@ -2240,30 +2701,30 @@ function parseFullDiffContent(diff) {
                 });
             }
         }
-        
+
         return { originalLines, modifiedLines };
     }
-    
+
     // Process hunks to build comprehensive content
     let totalProcessedLines = 0;
     let totalAddedLines = 0;
     let totalRemovedLines = 0;
-    
+
     // Enhanced logging for SCSS files
     const isSCSS = filePath.toLowerCase().endsWith('.scss');
     if (isSCSS) {
         console.log(`🎨 SCSS file ${filePath} has ${hunks.length} hunks to process`);
     }
-    
+
     for (let hunkIndex = 0; hunkIndex < hunks.length; hunkIndex++) {
         const hunk = hunks[hunkIndex];
         let oldNum = hunk.oldStart;
         let newNum = hunk.newStart;
-        
+
         if (isSCSS) {
             console.log(`  Hunk #${hunkIndex + 1}: old lines ${hunk.oldStart}-${hunk.oldStart + hunk.oldLines - 1}, new lines ${hunk.newStart}-${hunk.newStart + hunk.newLines - 1}`);
         }
-        
+
         // Add function/class context if available
         if (hunk.header) {
             originalLines.push({
@@ -2277,25 +2738,25 @@ function parseFullDiffContent(diff) {
                 type: 'context-header'
             });
         }
-        
+
         // Process lines in this hunk
         for (const line of hunk.lines) {
             if (line.startsWith(' ') || line === '') {
                 // Context line - appears in both versions
                 const content = line.startsWith(' ') ? line.substring(1) : '';
-                
+
                 originalLines.push({
                     content: content,
                     lineNum: oldNum,
                     type: 'context'
                 });
-                
+
                 modifiedLines.push({
                     content: content,
                     lineNum: newNum,
                     type: 'context'
                 });
-                
+
                 oldNum++;
                 newNum++;
             } else if (line.startsWith('-')) {
@@ -2305,20 +2766,20 @@ function parseFullDiffContent(diff) {
                     lineNum: oldNum,
                     type: 'removed'
                 });
-                
+
                 // Add placeholder for alignment
                 modifiedLines.push({
                     content: '',
                     lineNum: '',
                     type: 'empty'
                 });
-                
+
                 // Extra debug for SCSS
                 if (isSCSS) {
                     console.log(`    ❌ Removed line ${oldNum}: "${line.substring(1).trim().substring(0, 30)}${line.length > 30 ? '...' : ''}"`);
                     totalRemovedLines++;
                 }
-                
+
                 oldNum++;
             } else if (line.startsWith('+')) {
                 // Added line - only in modified
@@ -2327,35 +2788,35 @@ function parseFullDiffContent(diff) {
                     lineNum: newNum,
                     type: 'added'
                 });
-                
+
                 // Add placeholder for alignment
                 originalLines.push({
                     content: '',
                     lineNum: '',
                     type: 'empty'
                 });
-                
+
                 // Extra debug for SCSS
                 if (isSCSS) {
                     console.log(`    ✅ Added line ${newNum}: "${line.substring(1).trim().substring(0, 30)}${line.length > 30 ? '...' : ''}"`);
                     totalAddedLines++;
                 }
-                
+
                 newNum++;
             }
         }
-        
+
         // Add full content between hunks instead of gap summary
         if (hunkIndex < hunks.length - 1) {
             const nextHunk = hunks[hunkIndex + 1];
             const gapStart = oldNum;
             const gapEnd = nextHunk.oldStart - 1;
-            
+
             // Add all unchanged lines between hunks for full context
             for (let lineNum = gapStart; lineNum <= gapEnd; lineNum++) {
                 // Try to get actual line content from file if available
                 const content = `// Line ${lineNum} (unchanged)`; // Placeholder - could be enhanced to read actual file
-                
+
                 originalLines.push({
                     content: content,
                     lineNum: lineNum,
@@ -2368,10 +2829,10 @@ function parseFullDiffContent(diff) {
                 });
             }
         }
-        
+
         totalProcessedLines += hunk.lines.length;
     }
-    
+
     // Print summary for SCSS files
     if (isSCSS) {
         console.log(`🎨 SCSS File Summary for ${filePath}:`);
@@ -2382,7 +2843,7 @@ function parseFullDiffContent(diff) {
         console.log(`   - First 3 original lines types: ${originalLines.slice(0, 3).map(l => l.type).join(', ')}`);
         console.log(`   - First 3 modified lines types: ${modifiedLines.slice(0, 3).map(l => l.type).join(', ')}`);
     }
-    
+
     return { originalLines, modifiedLines };
 }
 
@@ -2413,7 +2874,7 @@ function getChangeIndicator(type) {
 function detectFunctionStart(line) {
     const trimmed = line.trim();
     const indent = line.length - line.trimStart().length;
-    
+
     // TypeScript/JavaScript function patterns
     const patterns = [
         // Regular functions: function name() {
@@ -2429,7 +2890,7 @@ function detectFunctionStart(line) {
         // Enum declaration: enum EnumName {
         { regex: /^(export\s+)?enum\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*[{]/, type: 'enum', nameIndex: 2 }
     ];
-    
+
     for (const pattern of patterns) {
         const match = trimmed.match(pattern.regex);
         if (match && match[pattern.nameIndex]) {
@@ -2442,7 +2903,7 @@ function detectFunctionStart(line) {
             };
         }
     }
-    
+
     return { isFunction: false, type: null, name: null, indent: indent };
 }
 
@@ -2456,18 +2917,18 @@ function findFunctionBoundaries(lines, changeLineIndex) {
     if (!lines || changeLineIndex < 0 || changeLineIndex >= lines.length) {
         return null;
     }
-    
+
     let functionStart = -1;
     let functionEnd = -1;
     let functionInfo = null;
     let braceCount = 0;
     let functionIndent = -1;
-    
+
     // Search backwards for function start
     for (let i = changeLineIndex; i >= 0; i--) {
         const line = lines[i];
         const detection = detectFunctionStart(line);
-        
+
         if (detection.isFunction) {
             functionStart = i;
             functionInfo = detection;
@@ -2476,16 +2937,16 @@ function findFunctionBoundaries(lines, changeLineIndex) {
             break;
         }
     }
-    
+
     if (functionStart === -1) {
         return null;
     }
-    
+
     // Search forwards for function end
     for (let i = functionStart + 1; i < lines.length; i++) {
         const line = lines[i];
         const trimmed = line.trim();
-        
+
         // Count braces to find function end
         for (const char of trimmed) {
             if (char === '{') {
@@ -2498,11 +2959,11 @@ function findFunctionBoundaries(lines, changeLineIndex) {
                 }
             }
         }
-        
+
         if (functionEnd !== -1) {
             break;
         }
-        
+
         // Safety check: if we find another function at the same or lower indent level, stop
         const detection = detectFunctionStart(line);
         if (detection.isFunction && detection.indent <= functionIndent) {
@@ -2510,12 +2971,12 @@ function findFunctionBoundaries(lines, changeLineIndex) {
             break;
         }
     }
-    
+
     // If we couldn't find the end, use a reasonable default
     if (functionEnd === -1) {
         functionEnd = Math.min(functionStart + 50, lines.length - 1);
     }
-    
+
     return {
         start: functionStart,
         end: functionEnd,
@@ -2536,7 +2997,7 @@ function findFunctionBoundaries(lines, changeLineIndex) {
 async function fetchFileContentFromAzureDevOps(organization, project, repositoryId, filePath, commitId, token) {
     try {
         const url = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repositoryId}/items?path=${encodeURIComponent(filePath)}&versionDescriptor.version=${commitId}&versionDescriptor.versionType=commit&api-version=6.0`;
-        
+
         const response = await fetch(url, {
             method: 'GET',
             headers: {
@@ -2544,12 +3005,12 @@ async function fetchFileContentFromAzureDevOps(organization, project, repository
                 'Content-Type': 'application/json'
             }
         });
-        
+
         if (!response.ok) {
             console.error(`Failed to fetch file content: ${response.status} ${response.statusText}`);
             return null;
         }
-        
+
         const content = await response.text();
         return content;
     } catch (error) {
@@ -2570,7 +3031,7 @@ function parseFullDiffContentWithFunctionContext(diff, originalFileContent = nul
     if (originalFileContent && modifiedFileContent) {
         return parseFullFileContentWithDiff(diff, originalFileContent, modifiedFileContent);
     }
-    
+
     // Otherwise, fall back to enhanced diff parsing method
     // Note: This function should be made async if we want to use the enhanced method
     return parseFullDiffContent(diff);
@@ -2586,11 +3047,11 @@ function parseFullDiffContentWithFunctionContext(diff, originalFileContent = nul
 function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
     const originalLines = originalContent.split('\n');
     const modifiedLines = modifiedContent.split('\n');
-    
+
     // Parse diff to identify which lines have changes
     const changes = parseDiffChanges(diff);
     const functionsWithChanges = new Set();
-    
+
     // Find functions that contain changes
     for (const change of changes) {
         if (change.originalLineNumber) {
@@ -2606,20 +3067,20 @@ function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
             }
         }
     }
-    
+
     // Build result with function context
     const resultOriginal = [];
     const resultModified = [];
     const processedFunctions = new Set();
-    
+
     // Process each function that has changes
     for (const functionStr of functionsWithChanges) {
         const functionBoundary = JSON.parse(functionStr);
         const functionKey = `${functionBoundary.start}-${functionBoundary.end}`;
-        
+
         if (processedFunctions.has(functionKey)) continue;
         processedFunctions.add(functionKey);
-        
+
         // Add function header
         if (functionBoundary.functionInfo) {
             resultOriginal.push({
@@ -2633,24 +3094,24 @@ function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
                 type: 'function-header'
             });
         }
-        
+
         // Add function lines with change detection
         const maxLines = Math.max(
             functionBoundary.end - functionBoundary.start + 1,
             functionBoundary.end - functionBoundary.start + 1
         );
-        
+
         for (let i = 0; i <= maxLines; i++) {
             const origIndex = functionBoundary.start + i;
             const modIndex = functionBoundary.start + i;
-            
+
             const origLine = origIndex < originalLines.length ? originalLines[origIndex] : '';
             const modLine = modIndex < modifiedLines.length ? modifiedLines[modIndex] : '';
-            
+
             // Determine line type based on changes
             let origType = 'context';
             let modType = 'context';
-            
+
             for (const change of changes) {
                 if (change.originalLineNumber === origIndex + 1 && change.type === 'removed') {
                     origType = 'removed';
@@ -2659,7 +3120,7 @@ function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
                     modType = 'added';
                 }
             }
-            
+
             if (origIndex < originalLines.length) {
                 resultOriginal.push({
                     content: origLine,
@@ -2667,7 +3128,7 @@ function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
                     type: origType
                 });
             }
-            
+
             if (modIndex < modifiedLines.length) {
                 resultModified.push({
                     content: modLine,
@@ -2676,7 +3137,7 @@ function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
                 });
             }
         }
-        
+
         // Add separator
         resultOriginal.push({
             content: '',
@@ -2689,7 +3150,7 @@ function parseFullFileContentWithDiff(diff, originalContent, modifiedContent) {
             type: 'function-separator'
         });
     }
-    
+
     return {
         originalLines: resultOriginal,
         modifiedLines: resultModified,
@@ -2707,7 +3168,7 @@ function parseDiffChanges(diff) {
     const diffLines = diff.split('\n');
     let oldLineNum = 0;
     let newLineNum = 0;
-    
+
     for (const line of diffLines) {
         if (line.startsWith('@@')) {
             const hunkMatch = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -2736,7 +3197,7 @@ function parseDiffChanges(diff) {
             newLineNum++;
         }
     }
-    
+
     return changes;
 }
 
@@ -2764,16 +3225,16 @@ function escapeHtml(text) {
 function parseDiffToExtractChanges(diff) {
     const changes = [];
     const diffLines = diff.split('\n');
-    
+
     let currentHunk = null;
     let oldLineNum = 0;
     let newLineNum = 0;
-    
+
     console.log('🔍 Parsing diff with', diffLines.length, 'lines');
-    
+
     for (let i = 0; i < diffLines.length; i++) {
         const line = diffLines[i];
-        
+
         if (line.startsWith('@@')) {
             // Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
             const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
@@ -2813,23 +3274,23 @@ function parseDiffToExtractChanges(diff) {
             continue;
         }
     }
-    
+
     console.log(`📊 Raw changes found: ${changes.length}`);
     changes.forEach(c => console.log(`   ${c.type} at line ${c.lineNumber}`));
-    
+
     // Group consecutive changes for better highlighting
     const groupedChanges = [];
     let currentGroup = null;
-    
+
     for (const change of changes) {
-        if (!currentGroup || 
-            currentGroup.type !== change.type || 
+        if (!currentGroup ||
+            currentGroup.type !== change.type ||
             currentGroup.lineNumber + currentGroup.lines.length !== change.lineNumber) {
-            
+
             if (currentGroup) {
                 groupedChanges.push(currentGroup);
             }
-            
+
             currentGroup = {
                 type: change.type,
                 lineNumber: change.lineNumber,
@@ -2839,14 +3300,14 @@ function parseDiffToExtractChanges(diff) {
             currentGroup.lines.push(change.content);
         }
     }
-    
+
     if (currentGroup) {
         groupedChanges.push(currentGroup);
     }
-    
+
     console.log(`� Grouped changes: ${groupedChanges.length}`);
     groupedChanges.forEach(c => console.log(`   ${c.type} at line ${c.lineNumber}-${c.lineNumber + c.lines.length - 1}`));
-    
+
     return groupedChanges;
 }
 
@@ -2859,12 +3320,12 @@ function parseDiffChanges(diff) {
     const diffLines = diff.split('\n');
     const changes = [];
     let currentHunk = null;
-    
+
     for (const line of diffLines) {
         if (line.startsWith('diff --git') || line.startsWith('+++') || line.startsWith('---') || line.startsWith('index ')) {
             continue;
         }
-        
+
         if (line.startsWith('@@')) {
             const hunkMatch = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
             if (hunkMatch) {
@@ -2880,14 +3341,14 @@ function parseDiffChanges(diff) {
             currentHunk.lines.push(line);
         }
     }
-    
+
     // Process hunks to create change objects
     if (currentHunk) {
         let oldLineNum = currentHunk.oldStart;
         let newLineNum = currentHunk.newStart;
         let pendingDeletion = null;
         let pendingAddition = null;
-        
+
         for (const line of currentHunk.lines) {
             if (line.startsWith(' ') || line === '') {
                 // Context line - no change
@@ -2919,7 +3380,7 @@ function parseDiffChanges(diff) {
                 pendingAddition.content.push(line.substring(1));
                 pendingAddition.count++;
                 newLineNum++;
-                
+
                 // If we have both deletion and addition, it's a modification
                 if (pendingDeletion) {
                     changes.push({
@@ -2934,7 +3395,7 @@ function parseDiffChanges(diff) {
                 }
             }
         }
-        
+
         // Handle remaining pending changes
         if (pendingDeletion) {
             changes.push(pendingDeletion);
@@ -2943,11 +3404,11 @@ function parseDiffChanges(diff) {
             changes.push(pendingAddition);
         }
     }
-    
+
     return changes;
 }
 
-function deactivate() {}
+function deactivate() { }
 
 module.exports = {
     activate,
