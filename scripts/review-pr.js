@@ -30,44 +30,40 @@ async function showGitHubDiffInWebview(prAnalysis, stream) {
             ...fileChange,
             provider: 'github',
             prId: data.id,
+            owner: data.owner,
+            repo: data.repository,
             // Ensure diffContent is available for webview
             diff: fileChange.diffContent || fileChange.diff || '',
             diffContent: fileChange.diffContent || fileChange.diff || ''
         };
         
         console.log(`🔍 Cached GitHub diff: ${diffId} for ${fileChange.path}`);
-        console.log(`📊 DEBUG: diffContent length: ${(fileChange.diffContent || '').length}, diff length: ${(fileChange.diff || '').length}`);
+        console.log(`📊 DEBUG: owner=${data.owner}, repo=${data.repository}, provider=github`);
     });
 
     // Debug cache summary for GitHub
     const githubCacheKeys = Object.keys(global.prDiffCache).filter(k => k.startsWith(`github_${data.id}_`));
     console.log(`🐙 GitHub cache summary: ${githubCacheKeys.length} files cached:`, githubCacheKeys);
 
-    // Display file links with webview buttons
+    // Display file links with webview buttons (hover for details)
     stream.markdown('📁 **Files in this GitHub PR:**\n\n');
     
     fileChanges.forEach(fileChange => {
         const diffId = `github_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const fileName = fileChange.path.split('/').pop();
         
-        // Create button to open diff in webview
+        // Create compact button: filename (+X/-Y) as button text, full path as tooltip
         stream.button({
             command: 'aiSelfCheck.viewPrDiff',
-            title: `📄 ${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            title: `${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            tooltip: `${fileChange.path} | ${fileChange.changeType} | Click to view in Monaco Diff Editor`,
             arguments: [diffId]
         });
         
-        stream.markdown(`\n**${fileChange.path}** - ${fileChange.changeType} (+${fileChange.additions}/-${fileChange.deletions})\n\n`);
+        // No additional text below - everything in button
     });
 
-    // Button to view all diffs at once
-    stream.button({
-        command: 'aiSelfCheck.viewAllPrDiffs',
-        title: `📊 View All ${fileChanges.length} Files in Tabbed Webview`,
-        arguments: [`github_${data.id}`]
-    });
-
-    stream.markdown('\n\n💡 **Click any file button above to view diff in webview**\n\n');
+    stream.markdown('\n\n💡 **Hover over buttons to see file details**\n\n');
 }
 
 /**
@@ -92,6 +88,26 @@ async function showAzureDevOpsDiffInWebview(prAnalysis, stream) {
         global.prDiffCache = {};
     }
 
+    // 🚀 Cache Azure DevOps API credentials and PR metadata for full content retrieval
+    const config = vscode.workspace.getConfiguration('aiSelfCheck');
+    const accessToken = config.get('azureDevOps.personalAccessToken');
+    
+    // Store global Azure DevOps API info for parseFullDiffContentEnhanced
+    global.prDiffCache.accessToken = accessToken;
+    global.prDiffCache.organization = data.organization;
+    global.prDiffCache.project = data.project;
+    global.prDiffCache.repository = data.repository;
+    global.prDiffCache.sourceCommit = data.sourceCommit;
+    global.prDiffCache.targetCommit = data.targetCommit;
+    
+    console.log('🚀 Cached Azure DevOps API credentials for full content retrieval:');
+    console.log(`   Organization: ${data.organization}`);
+    console.log(`   Project: ${data.project}`);
+    console.log(`   Repository: ${data.repository}`);
+    console.log(`   Source Commit: ${data.sourceCommit?.substring(0, 7)}`);
+    console.log(`   Target Commit: ${data.targetCommit?.substring(0, 7)}`);
+    console.log(`   Access Token: ${accessToken ? '✅ Available' : '❌ Missing'}`);
+
     stream.markdown('🔵 **Azure DevOps Diff Webview Display**\n\n');
     
     // Cache all Azure DevOps file changes for webview access
@@ -104,37 +120,38 @@ async function showAzureDevOpsDiffInWebview(prAnalysis, stream) {
             prId: data.id,
             // Ensure diffContent is available for webview
             diff: fileChange.diffContent || fileChange.diff || '',
-            diffContent: fileChange.diffContent || fileChange.diff || ''
+            diffContent: fileChange.diffContent || fileChange.diff || '',
+            // Add Azure DevOps API info for full content retrieval
+            organization: data.organization,
+            project: data.project,
+            repository: data.repository,
+            sourceCommit: data.sourceCommit,
+            targetCommit: data.targetCommit,
+            accessToken: accessToken
         };
         
         console.log(`🔍 Cached Azure DevOps diff: ${diffId} for ${fileChange.path}`);
     });
 
-    // Display file links with webview buttons
+    // Display file links with webview buttons (hover for details)
     stream.markdown('📁 **Files in this Azure DevOps PR:**\n\n');
     
     fileChanges.forEach(fileChange => {
         const diffId = `pr${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const fileName = fileChange.path.split('/').pop();
         
-        // Create button to open diff in webview
+        // Create compact button: filename (+X/-Y) as button text, full path as tooltip
         stream.button({
             command: 'aiSelfCheck.viewPrDiff',
-            title: `📄 ${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            title: `${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            tooltip: `${fileChange.path} | ${fileChange.changeType} | Click to view in Monaco Diff Editor`,
             arguments: [diffId]
         });
         
-        stream.markdown(`\n**${fileChange.path}** - ${fileChange.changeType} (+${fileChange.additions}/-${fileChange.deletions})\n\n`);
+        // No additional text below - everything in button
     });
 
-    // Button to view all diffs at once
-    stream.button({
-        command: 'aiSelfCheck.viewAllPrDiffs',
-        title: `📊 View All ${fileChanges.length} Files in Tabbed Webview`,
-        arguments: [data.id]
-    });
-
-    stream.markdown('\n\n💡 **Click any file button above to view diff in webview**\n\n');
+    stream.markdown('\n\n💡 **Hover over buttons to see file details**\n\n');
 }
 const vscode = require('vscode');
 const path = require('path');
@@ -928,6 +945,41 @@ async function getFileContent(organization, project, repository, filePath, commi
         return null;
     } catch (error) {
         console.log(`❌ Error fetching content for ${filePath}: ${error.message}`);
+        return null;
+    }
+}
+
+/**
+ * Get file content from GitHub API at a specific commit
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name  
+ * @param {string} filePath - File path
+ * @param {string} commitSha - Commit SHA
+ * @param {string} token - GitHub token
+ * @returns {string|null} - File content or null if not found
+ */
+async function getGitHubFileContent(owner, repo, filePath, commitSha, token) {
+    try {
+        console.log(`🔄 Fetching GitHub content for ${filePath} at commit ${commitSha.substring(0, 7)}`);
+
+        // GitHub Contents API URL
+        const contentsUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}?ref=${commitSha}`;
+
+        const response = await makeGitHubRequest(contentsUrl, token);
+
+        if (response.success && response.data) {
+            // GitHub API returns base64 encoded content
+            if (response.data.content && response.data.encoding === 'base64') {
+                const content = Buffer.from(response.data.content, 'base64').toString('utf8');
+                console.log(`✅ Got GitHub file content: ${content.length} chars`);
+                return content;
+            }
+        }
+
+        console.log(`❌ Could not fetch GitHub content: ${response.error || 'unknown'}`);
+        return null;
+    } catch (error) {
+        console.log(`❌ Error fetching GitHub content for ${filePath}: ${error.message}`);
         return null;
     }
 }
@@ -2145,6 +2197,7 @@ module.exports = {
     openPrReviewDocument,
     parseRealGitDiff,
     getFileContent,
+    getGitHubFileContent,         // GitHub file content API
     showGitHubDiffInWebview,      // Function B - GitHub diff webview
     showAzureDevOpsDiffInWebview  // Function A - Azure DevOps diff webview
 };
