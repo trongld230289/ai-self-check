@@ -36,16 +36,21 @@ function normalizeModelFamily(modelFamily) {
     
     // Claude models
     if (family.includes('claude')) {
+        if (family.includes('4.5') || family.includes('4-5')) return 'claude-sonnet-4.5';
         if (family.includes('4')) return 'claude-sonnet-4';
-        if (family.includes('3.7') && family.includes('thinking')) return 'claude-sonnet-3.7-thinking';
-        if (family.includes('3.7')) return 'claude-sonnet-3.7';
-        if (family.includes('3.5')) return 'claude-sonnet-3.5';
+        if (family.includes('3.7') || family.includes('3-7')) {
+            if (family.includes('thinking')) return 'claude-sonnet-3.7-thinking';
+            return 'claude-sonnet-3.7';
+        }
+        if (family.includes('3.5') || family.includes('3-5')) return 'claude-sonnet-3.5';
         if (family.includes('sonnet')) return 'claude-sonnet-3.5'; // Default claude
         return 'claude-sonnet-3.5';
     }
     
     // GPT models
     if (family.includes('gpt')) {
+        if (family.includes('4.1') || family.includes('4-1')) return 'gpt-4.1';
+        if (family.includes('5') && (family.includes('codex') || family.includes('preview'))) return 'gpt-5-codex';
         if (family.includes('5') && family.includes('mini')) return 'gpt-5-mini';
         if (family.includes('5') && family.includes('nano')) return 'gpt-5-nano';
         if (family.includes('5')) return 'gpt-5';
@@ -56,24 +61,44 @@ function normalizeModelFamily(modelFamily) {
         return 'gpt-4o'; // Default GPT
     }
     
-    // Gemini models
+    // Gemini models  
     if (family.includes('gemini')) {
+        if (family.includes('2.5') || family.includes('2-5')) {
+            if (family.includes('pro')) return 'gemini-2.5-pro';
+            return 'gemini-2.5-pro';
+        }
         if (family.includes('2.0') && family.includes('flash')) return 'gemini-2.0-flash';
         if (family.includes('2-0') && family.includes('flash')) return 'gemini-2.0-flash';
-        if (family.includes('2.5') && family.includes('pro')) return 'gemini-2.5-pro';
-        if (family.includes('2-5') && family.includes('pro')) return 'gemini-2.5-pro';
         if (family.includes('flash')) return 'gemini-2.0-flash';
         return 'gemini-2.5-pro'; // Default gemini
     }
     
     // O-series models
-    if (family.includes('o3') && family.includes('mini')) return 'o3-mini';
     if (family.includes('o4') && family.includes('mini')) return 'o4-mini';
+    if (family.includes('o3') && family.includes('mini')) return 'o3-mini';
+    if (family.includes('o1') && family.includes('mini')) return 'o1-mini';
     
     // Grok models
     if (family.includes('grok')) {
         if (family.includes('code') && family.includes('fast')) return 'grok-code-fast-1';
         return 'grok-code-fast-1';
+    }
+    
+    // Handle exact model names from Copilot that might not match patterns
+    // Direct mapping for common Copilot model names
+    const directMappings = {
+        'claude sonnet 4': 'claude-sonnet-4',
+        'claude sonnet 3.5': 'claude-sonnet-3.5',
+        'claude 4': 'claude-sonnet-4',
+        'claude 3.5': 'claude-sonnet-3.5',
+        'gpt 4o': 'gpt-4o',
+        'gpt 4.1': 'gpt-4.1',
+        'gpt 5': 'gpt-5',
+        'gemini 2.5 pro': 'gemini-2.5-pro'
+    };
+    
+    if (directMappings[family]) {
+        return directMappings[family];
     }
     
     // Unknown model
@@ -162,14 +187,26 @@ function getModelPricing() {
             'mistral': { input: 0.00, output: 0.00 }
         },
         
-        // GitHub Copilot (free with subscription) - Previous pricing for reference
+        // GitHub Copilot (standard per-token pricing)
+        // All models use standard input/output token pricing
         'copilot': {
-            'claude-3-5-sonnet': { input: 0.00, output: 0.00 },
-            'claude-sonnet-3.5': { input: 0.00, output: 0.00 },
-            'claude-4': { input: 0.00, output: 0.00 },
-            'gpt-4o': { input: 0.00, output: 0.00 },
-            'gpt-4': { input: 0.00, output: 0.00 },
-            'gemini': { input: 0.00, output: 0.00 }
+            // Popular models
+            'gpt-5-mini': { input: 0.15, output: 0.60 },
+            'gpt-4.1': { input: 2.50, output: 10.00 },
+            'gpt-4o': { input: 2.50, output: 10.00 },
+            'claude-sonnet-4': { input: 3.00, output: 15.00 },
+            'claude-sonnet-3.5': { input: 3.00, output: 15.00 },
+            'claude-opus-4.1': { input: 15.00, output: 75.00 },
+            'gemini-2.5-pro': { input: 1.25, output: 5.00 },
+            'gemini-2.0-flash': { input: 0.075, output: 0.30 },
+            'gpt-5': { input: 5.00, output: 15.00 },
+            'o3-mini': { input: 3.00, output: 12.00 },
+            'o4-mini': { input: 3.00, output: 12.00 },
+            'grok-code-fast-1': { input: 2.00, output: 8.00 },
+            
+            // Legacy models for backward compatibility
+            'gpt-4': { input: 2.50, output: 10.00 },
+            'claude-3-5-sonnet': { input: 3.00, output: 15.00 }
         }
     };
 }
@@ -197,13 +234,23 @@ function estimateCost(inputTokens, outputTokens, modelFamily, provider = null, a
     
     // Normalize model name for lookup
     const modelKey = normalizeModelFamily(modelFamily);
-    const rates = providerPricing[modelKey] || providerPricing['gpt-4o'] || { input: 0.00, output: 0.00 };
     
+    // Get rates for the model
+    const rates = providerPricing[modelKey] || 
+                 providerPricing[modelFamily] || 
+                 providerPricing['gpt-4o'] || 
+                 { input: 2.50, output: 10.00 }; // Default fallback rates
+    
+    console.log(`💰 Provider pricing keys: ${Object.keys(providerPricing).join(', ')}`);
+    console.log(`💰 Looking for model key: ${modelKey} (original: ${modelFamily})`);
     console.log(`💰 Using rates for ${provider}/${modelKey}:`, rates);
     
+    // Calculate standard per-token pricing
     const inputCost = (inputTokens / 1000000) * rates.input;
     const outputCost = (outputTokens / 1000000) * rates.output;
     const totalCost = inputCost + outputCost;
+    
+    console.log(`💰 Calculated costs: input=$${inputCost.toFixed(6)}, output=$${outputCost.toFixed(6)}, total=$${totalCost.toFixed(6)}`);
     
     return {
         inputCost: inputCost,
@@ -1169,7 +1216,7 @@ async function executeAIReviewWithCopilot(userPrompt, model, stream, reviewType 
         // console.log(`🧹 Cleaned output: ${outputText.length} chars -> ${cleanedOutput.length} chars`);
         
         // Show completion with token statistics
-        showTokenStatistics(stream, userPrompt, outputText, model, reviewType, attemptCount);
+        showTokenStatistics(stream, userPrompt, outputText, model, reviewType, attemptCount, 'copilot', null, null);
         
         return true; // Success
         
@@ -1624,7 +1671,8 @@ function showTokenStatistics(stream, inputText, outputText, model, reviewType, a
         console.log(`📊 Using estimated tokens: Input=${inputTokens}, Output=${outputTokens}`);
     }
     
-    const finalCost = estimateCost(inputTokens, outputTokens, model.family, provider, apiHost);
+    // Get cost estimation with GitHub Copilot quota logic
+    const finalCost = estimateCost(inputTokens, outputTokens, model.family, provider, apiHost, 'pro', 0);
     
     // Determine completion status
     const completionStatus = attemptCount === 0 ? 'original model' : `fallback model (${model.family})`;
@@ -1633,9 +1681,12 @@ function showTokenStatistics(stream, inputText, outputText, model, reviewType, a
     stream.markdown(`\n\n---\n\n`);
     stream.markdown(`📊 **Token Usage Summary:**\n`);
     stream.markdown(`- **Input tokens**: ${inputTokens.toLocaleString()} ($${finalCost.inputRate.toFixed(2)}/1M)\n`);
-    stream.markdown(`- **Output tokens**: ${outputTokens.toLocaleString()} ($${finalCost.outputRate.toFixed(2)}/1M tokens)\n`);
+    stream.markdown(`- **Output tokens**: ${outputTokens.toLocaleString()} ($${finalCost.outputRate.toFixed(2)}/1M)\n`);
     stream.markdown(`- **Total tokens**: ${(inputTokens + outputTokens).toLocaleString()}\n`);
-    stream.markdown(`- **Estimated cost**: $${finalCost.totalCost.toFixed(4)} (Input: $${finalCost.inputCost.toFixed(4)} | Output: $${finalCost.outputCost.toFixed(4)})\n`);
+    
+    // Show cost information - always calculate by token
+    stream.markdown(`- **Cost**: $${finalCost.totalCost.toFixed(4)} (Input: $${finalCost.inputCost.toFixed(4)} | Output: $${finalCost.outputCost.toFixed(4)})\n`);
+    
     stream.markdown(`- **Model used**: ${model.family}${finalCost.provider ? ` (${finalCost.provider})` : ''}\n\n`);
     stream.markdown(`✅ **${reviewType} Analysis complete** - successfully used ${completionStatus}\n\n`);
     

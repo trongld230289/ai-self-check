@@ -174,9 +174,9 @@ Generated comprehensive API analysis with business domain classification, duplic
         stream.markdown(`\n\n---\n\n`);
         stream.markdown(`📊 **Token Usage Summary:**\n`);
         stream.markdown(`- **Input tokens**: ${totalInputTokens.toLocaleString()} ($${costBreakdown.inputRate.toFixed(2)}/1M)\n`);
-        stream.markdown(`- **Output tokens**: ${totalOutputTokens.toLocaleString()} ($${costBreakdown.outputRate.toFixed(2)}/1M tokens)\n`);
+        stream.markdown(`- **Output tokens**: ${totalOutputTokens.toLocaleString()} ($${costBreakdown.outputRate.toFixed(2)}/1M)\n`);
         stream.markdown(`- **Total tokens**: ${(totalInputTokens + totalOutputTokens).toLocaleString()}\n`);
-        stream.markdown(`- **Estimated cost**: $${costBreakdown.totalCost.toFixed(4)} (Input: $${costBreakdown.inputCost.toFixed(4)} | Output: $${costBreakdown.outputCost.toFixed(4)})\n`);
+        stream.markdown(`- **Cost**: $${costBreakdown.totalCost.toFixed(4)} (Input: $${costBreakdown.inputCost.toFixed(4)} | Output: $${costBreakdown.outputCost.toFixed(4)})\n`);
         stream.markdown(`- **Model used**: ${aiModel || 'gpt-4o'}${costBreakdown.provider ? ` (${costBreakdown.provider})` : ''}\n\n`);
         stream.markdown(`✅ **API Pattern Analysis complete** - successfully analyzed ${apiEndpoints.length} endpoints\n\n`);
     }
