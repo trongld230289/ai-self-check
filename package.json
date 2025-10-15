@@ -2,7 +2,7 @@
   "name": "ai-self-check",
   "displayName": "AI Self Check",
   "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
-  "version": "1.0.24",
+  "version": "1.0.31",
   "publisher": "trongld232",
   "icon": "icons/extension-icon.png",
   "author": {
@@ -72,6 +72,11 @@
       {
         "command": "aiSelfCheck.showAvailableModels",
         "title": "Show Available Language Models",
+        "category": "AI Self Check"
+      },
+      {
+        "command": "aiSelfCheck.showDailyReport",
+        "title": "Show Daily Report",
         "category": "AI Self Check"
       }
     ],
@@ -184,6 +189,12 @@
         "name": "create-app",
         "description": "Generate React apps from wireframes",
         "isSticky": true
+      },
+      {
+        "id": "daily-report",
+        "name": "daily-report",
+        "description": "📊 Generate and view daily project report",
+        "isSticky": true
       }
     ]
   },
@@ -193,13 +204,10 @@
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",
-    "@vscode/vsce": "^2.19.0"
+    "@vscode/vsce": "^2.19.0",
+    "diff": "^8.0.2"
   },
   "dependencies": {
-    "diff": "^8.0.2",
-    "highlight.js": "^11.11.1",
-    "node-fetch": "^2.7.0",
-    "prismjs": "^1.30.0",
-    "sharp": "^0.34.4"
+    "diff": "^8.0.2"
   }
 }

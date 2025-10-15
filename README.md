@@ -1,34 +1,19 @@
 # 🤖 AI Self Check - VS Code Extension
 
-[![Version](https://img.shields.io/badge/version-1.0.22-blue.svg)](https://github.com/trongld230289/ai-self-check)
+[![Version](https://img.shields.io/badge/version-1.0.31-blue.svg)](https://github.com/trongld230289/ai-self-check)
 
 ## 📋 Latest Updates
 
-### v1.0.22 (Current)
-- 🔧 **Critical Priority Fix**: Moved API key check to PRIORITY 0 in getUnifiedModel()
-- 🛡️ **Eliminated Errors**: No more continuous checking and workbench.desktop.main.js errors
-- ⚡ **Performance**: Immediate AI detection without redundant Copilot model checks
-- 🚀 **Stability**: Clean separation between API key mode and Copilot mode
-
-### v1.0.21
-- 🔧 **File Review API Key Support**: Fixed `@review-file` to work with API key mode
-- 🛡️ **Infinite Loop Protection**: Complete protection for users without GitHub Copilot
-- 📊 **Enhanced Compatibility**: Both `@review-file` and `@review-changes` now work seamlessly with API keys
-- 🚀 **Improved Error Handling**: Better guidance when AI models are unavailable
+### v1.0.31 (Current)
+- � **Complete Chat Participants**: @scan-app, @create-app, @daily-report, @review-pr, @review-changes  
+- � **Advanced Features**: Diff View with Monaco Editor, Instructions Generator, Template System
+- 🌟 **Multi-Platform AI**: Support for GitHub Copilot, STU Platform, OpenAI, Anthropic, Google AI
+- �️ **Security Focus**: Zero-build errors with comprehensive dependency validation
 
 ### v1.0.20
 - ✨ **Free VS Code Support**: Works without GitHub Copilot license
 - � **API Key Mode**: Use your own AI API key (OpenAI, Claude, Gemini, etc.)
 - 🔧 **Smart Fallback**: Automatically switches between API key and Copilot
-- 🚀 **Enhanced Access**: Now available for all VS Code users
-
-### v1.0.16
-- 📊 **Improved Review Templates**: Enhanced consistency across all review templates with strict mode and line number traceability
-- 🌐 **Localization**: Updated all Vietnamese text to English for better international accessibility
-- 🔧 **Bug Fixes**: Fixed model detection issues in PR review functionality
-
-### v1.0.15
-- 🔄 **Enhanced PR Review Control**: Added global configuration variable `isShowSummaryOfChanges` for controlling PR review display sections
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90.0+-purple.svg)](https://code.visualstudio.com/)
@@ -101,29 +86,30 @@ AI-powered code review extension with intelligent chat participants for automate
 
 ## 🔧 Configuration
 
-### 🔑 API Key Mode (For Users Without Copilot License)
+### ⚙️ **Quick Settings Setup**
 
-If you don't have GitHub Copilot but want to use your own AI API key:
+1. **Open VS Code Settings**: Press `Ctrl + ,` (Windows/Linux) or `Cmd + ,` (Mac)
+2. **Search**: Type `AI Self Check` in the search box
+3. **Configure the following settings**:
 
-1. **Configure API Settings** (in VS Code Settings or `settings.json`):
-```json
-{
-  "aiSelfCheck.useApiKeyInsteadOfCopilot": true,
-  "aiSelfCheck.ai.apiKey": "your-api-key-here",
-  "aiSelfCheck.ai.apiHost": "https://api.openai.com",
-  "aiSelfCheck.ai.model": "gpt-4o"
-}
-```
+#### **🔑 API Configuration** (For users without GitHub Copilot)
+- **Use Api Key Instead Of Copilot**: ✅ Enable to use your own API key
+- **Api Host**: `https://api.openai.com/v1/chat/completions` (or your preferred AI provider)
+- **Api Key**: Your AI service API key (OpenAI, Claude, Gemini, etc.)
+- **Model**: `gpt-4o` (or your preferred model)
 
-2. **Supported Providers**:
-   - **OpenAI**: `https://api.openai.com` with models like `gpt-4o`, `gpt-4-turbo`
-   - **Anthropic**: `https://api.anthropic.com` with models like `claude-3-sonnet`, `claude-3-opus`
-   - **Google**: `https://googleapis.com` with models like `gemini-2.5-pro`, `gemini-2.0-flash`
-   - **Custom APIs**: Any OpenAI-compatible API endpoint
+#### **🔵 Azure DevOps Integration**
+- **Default Project**: Your Azure DevOps project name (e.g., `Shippo`)
+- **Organization**: Your Azure DevOps organization (e.g., `BusinessWebUS`)
+- **Personal Access Token**: Your Azure DevOps PAT for PR review
 
-3. **Smart Fallback**: If API key fails, automatically falls back to Copilot (if available)
+#### **🐙 GitHub Integration**
+- **Personal Access Token**: Your GitHub PAT for PR review
 
-### 🎨 Template Customization
+### 💡 **That's it!** 
+The extension will automatically use GitHub Copilot if available, or fall back to your API key configuration.
+
+### 🎨 **Template Customization**
 When you run the extension for the first time, it automatically generates default templates in:
 - `.vscode/extensions/ai-self-check/templates/`
 
@@ -192,52 +178,9 @@ When you run the extension for the first time, it automatically generates defaul
 - 📊 **Customizable Analysis**: Improved PR review flexibility with toggle controls for detailed diff information
 - 🔧 **Better User Control**: Fine-tuned PR review output display with conditional section rendering
 
-### v1.0.14
-- 🚀 **Enhanced Azure DevOps PR Review**: Smart diff parsing that filters formatting/whitespace noise
-- 🎨 **Theme-Appropriate Icons**: PR review participant now has light/dark theme icons
-- 📊 **Real Change Statistics**: Accurate line counting with semantic analysis (shows real vs total changes)
-- 🔧 **Improved Connectivity**: Better error handling and retry logic for Azure DevOps API
-- 📋 **Enhanced Templates**: Updated PR review templates with structured analysis
-- 🛠️ **Better Fallbacks**: Improved mock data and error recovery for demo purposes
+## � Version History
 
-### v1.0.13
-- 🔄 **Template System Refactoring**: Unified template loading with combined common + specific templates
-- 🎯 **Enhanced Model Fallback**: Improved quota limit detection and automatic model switching
-- 🛠️ **Code Modularization**: Extracted review-PR functionality to external scripts for better maintainability
-- ⚡ **Performance**: Reduced main extension size and eliminated duplicate template loading code
-- 🔧 **Error Handling**: Better messaging when AI models hit quota limits or become unavailable
-
-### v1.0.11
-- 🌍 **Internationalization**: Fixed Vietnamese text with full English support
-- 🚀 **Azure DevOps PR Review**: Added @review-pr chat participant for Pull Request analysis
-- 📁 **File Detection**: Fixed issue showing folders instead of actual changed files
-- 🔧 **API Optimization**: Simplified Azure DevOps integration for better reliability
-- ✅ **Real Data**: Successfully fetching real Azure DevOps PR data instead of mock data
-- 🎯 **Accuracy**: Now correctly shows actual changed files from PRs
-- 📊 **Performance**: Streamlined API calls for faster operation
-
-### v1.0.10
-- Code cleanup and optimization - 44% file size reduction
-- Template-driven instruction system for better maintainability
-- Consolidated review instructions into template files
-- Improved user customization capabilities
-- Better separation of concerns between code and templates
-
-### v1.0.9
-- Enhanced template formatting and conditional recommendations
-- Improved visual highlighting for approval status
-- Optimized AI review output formatting
-- Better error handling and user feedback mechanisms
-- Fixed template rendering issues for review comment sections
-
-### v1.0.8
-- Updated command naming from `aiCodeReviewer.*` to `aiSelfCheck.*`
-- Fixed right-click context menu functionality
-- Improved extension consistency and branding
-- ✨ Enhanced chat participant descriptions with icons
-- 🔧 Improved auto-detection for current files
-- 📄 Updated documentation and README
-- 🐛 Bug fixes and performance improvements
+For complete changelog and older versions, see [CHANGELOG.md](CHANGELOG.md)
 
 ### v1.0.3
 - 🆕 Added sticky chat participants

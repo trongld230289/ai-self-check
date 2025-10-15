@@ -126,6 +126,9 @@ async function setupAzureDevOpsSettings() {
 function activate(context) {
     console.log('Review Helper extension is now active!');
 
+    // Store extension path globally for diff module access
+    global.extensionPath = context.extensionPath;
+
     // Auto-generate templates on first run
     ensureTemplatesExist(context);
 
@@ -277,6 +280,19 @@ function activate(context) {
         createAppParticipant = null;
     }
 
+    // Initialize daily-report functionality from external script
+    let dailyReportParticipant;
+    try {
+        const dailyReport = require('./scripts/daily-report');
+        const result = dailyReport.initializeDailyReport(context);
+        dailyReportParticipant = result.dailyReportParticipant;
+        console.log('✅ Daily-report participant initialized successfully');
+    } catch (error) {
+        console.error('❌ Failed to initialize daily-report participant:', error);
+        // Create a dummy participant to prevent errors
+        dailyReportParticipant = null;
+    }
+
     // Register command to view PR diff in webview
     const viewPrDiffCommand = vscode.commands.registerCommand('aiSelfCheck.viewPrDiff', async (diffId) => {
         try {
@@ -368,6 +384,53 @@ function activate(context) {
     // Register command to show available models
     const showModelsCommand = vscode.commands.registerCommand('aiSelfCheck.showAvailableModels', showAvailableModels);
 
+    // Register command to show daily report in webview
+    const showDailyReportCommand = vscode.commands.registerCommand('aiSelfCheck.showDailyReport', async (reportPath, htmlContent) => {
+        try {
+            console.log('📊 Opening daily report webview...');
+            
+            // Import the daily report module and create webview
+            const dailyReport = require('./scripts/daily-report');
+            dailyReport.createDailyReportWebview(reportPath, htmlContent);
+            
+        } catch (error) {
+            console.error('❌ Error opening daily report webview:', error);
+            vscode.window.showErrorMessage(`Failed to open daily report: ${error.message}`);
+        }
+    });
+
+    // Register command to show daily report template
+    const showDailyReportTemplateCommand = vscode.commands.registerCommand('aiSelfCheck.showDailyReportTemplate', async () => {
+        try {
+            console.log('📋 Showing daily report template...');
+            
+            const panel = vscode.window.createWebviewPanel(
+                'dailyReportTemplate',
+                '📋 Daily Report Template',
+                vscode.ViewColumn.One,
+                { enableScripts: false }
+            );
+
+            panel.webview.html = `
+                <h1>📊 Daily Report Template</h1>
+                <p>Use <code>@daily-report</code> in chat to generate your daily project report.</p>
+                <h2>Features:</h2>
+                <ul>
+                    <li>📈 Sprint progress overview</li>
+                    <li>✅ Completed tasks tracking</li>
+                    <li>🔄 In-progress items</li>
+                    <li>⏳ Pending tasks</li>
+                    <li>🌟 Daily highlights</li>
+                    <li>📝 Technical notes</li>
+                </ul>
+            `;
+            
+        } catch (error) {
+            console.error('❌ Error showing daily report template:', error);
+            vscode.window.showErrorMessage(`Failed to show template: ${error.message}`);
+        }
+    });
+
     // Add all subscriptions, filtering out null values
     const subscriptions = [
         setupAzureDevOps,
@@ -383,7 +446,10 @@ function activate(context) {
         reviewPullRequest,
         scanAppParticipant,
         createAppParticipant,
+        dailyReportParticipant,
         showModelsCommand,
+        showDailyReportCommand,
+        showDailyReportTemplateCommand,
         viewPrDiffCommand
     ].filter(item => item !== null && item !== undefined);
 
@@ -1736,8 +1802,8 @@ async function getMonacoWebviewContent(diffData, panel, context) {
             width: 350px;
             background-color: var(--vscode-sideBar-background);
             border-right: 1px solid var(--vscode-panel-border);
-            overflow-y: hidden;              /* Bỏ scroll bar */
-            overflow-x: hidden;              /* Bỏ scroll horizontal */
+            overflow-y: auto;               /* Enable vertical scroll when needed */
+            overflow-x: hidden;             /* Keep horizontal hidden */
             flex-shrink: 0;
             min-width: 200px;
             max-width: 600px;
@@ -3859,9 +3925,16 @@ function convertFullContentToLineFormat(baseContent, targetContent) {
     // Try to import diff library if available
     let diff;
     try {
-        diff = require('diff');
+        const diffPath = path.join(__dirname, 'diff', 'libcjs', 'index.js');
+        console.log('🔍 Trying to load diff from:', diffPath);
+        console.log('🔍 __dirname is:', __dirname);
+        console.log('🔍 File exists:', require('fs').existsSync(diffPath));
+        diff = require(diffPath);
+        console.log('✅ diff module loaded successfully');
     } catch (error) {
         console.log('❌ diff library not available, using simple reconstruction');
+        console.log('❌ diff error:', error.message);
+        console.log('❌ Stack:', error.stack);
         return {
             originalLines: baseContent.split('\n').map((line, i) => ({ content: line, lineNum: i + 1, type: 'context' })),
             modifiedLines: targetContent.split('\n').map((line, i) => ({ content: line, lineNum: i + 1, type: 'context' }))
