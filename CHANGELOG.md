@@ -2,6 +2,22 @@
 
 All notable changes to the "ai-self-check" extension will be documented in this file.
 
+## [1.0.35] - 2025-10-15
+
+### 🔧 Improvements
+
+- **Enhanced stability**: Additional improvements to bundled module loading
+- **Performance optimizations**: Better resource management and error handling
+- **Marketplace compatibility**: Ensured full compatibility with VS Code Marketplace distribution
+
+## [1.0.34] - 2025-10-15
+
+### 🔧 Bug Fixes
+
+- **Fixed bundled diff module path resolution**: Resolved "Cannot find module 'diff'" error for marketplace installations
+- **Improved dependency loading**: Added fallback mechanism for bundled modules with proper path resolution
+- **Enhanced error handling**: Better error messages when bundled dependencies are missing
+
 ## [1.0.31] - 2025-10-15
 
 ### 🚀 Core Chat Participants

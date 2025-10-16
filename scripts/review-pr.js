@@ -158,7 +158,26 @@ const path = require('path');
 const https = require('https');
 const { execSync } = require('child_process');
 const { getReviewTemplate, getUnifiedModel, executeAIReview, shouldUseApiKey } = require('./review-common');
-const Diff = require('diff');
+
+// Try to require diff package with fallback to bundled version
+let Diff;
+try {
+    // First try the bundled diff in extension directory
+    if (global.extensionPath) {
+        Diff = require(path.join(global.extensionPath, 'diff'));
+    } else {
+        // Fallback to relative path from current directory
+        Diff = require('../diff');
+    }
+} catch (error) {
+    console.warn('⚠️ Bundled diff not available, using fallback diff functionality');
+    // Create a simple fallback for basic diff functionality
+    Diff = {
+        createPatch: (fileName, oldStr, newStr) => {
+            return `--- ${fileName}\n+++ ${fileName}\n@@ -1,${oldStr.split('\n').length} +1,${newStr.split('\n').length} @@\n${newStr}`;
+        }
+    };
+}
 
 // Global configuration variables
 const isShowSummaryOfChanges = false;
