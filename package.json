@@ -1,7 +1,7 @@
 {
   "name": "ai-self-check",
   "displayName": "AI Self Check",
-  "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews",
+  "description": "AI-powered code review extension with chat participants for intelligent code analysis and git change reviews. Supports GitHub, GitLab, and Azure DevOps.",
   "version": "1.0.35",
   "publisher": "trongld232",
   "icon": "icons/extension-icon.png",
@@ -29,7 +29,10 @@
     "git",
     "diff",
     "claude",
-    "gpt"
+    "gpt",
+    "github",
+    "gitlab",
+    "azure devops"
   ],
   "engines": {
     "vscode": "^1.90.0"
@@ -155,6 +158,12 @@
           "type": "string",
           "default": "",
           "description": "GitHub Personal Access Token for PR review (requires repo or public_repo permissions)",
+          "scope": "application"
+        },
+        "aiSelfCheck.gitlab.personalAccessToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitLab Personal Access Token for MR review (requires read_api or api permissions)",
           "scope": "application"
         }
       }

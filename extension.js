@@ -339,9 +339,11 @@ function activate(context) {
                             
                             if (provider === 'github') {
                                 prPrefix = `github_${prId}_`;
+                            } else if (provider === 'gitlab') {
+                                prPrefix = `gitlab_${prId}_`;
                             } else {
                                 // Azure DevOps
-                                prPrefix = `pr${prId}_`;
+                                prPrefix = `azure_${prId}_`;
                             }
                             
                             console.log(`🔄 Looking for file in ${provider} PR ${prId} with prefix: ${prPrefix}`);
@@ -1452,9 +1454,11 @@ async function getMonacoWebviewContent(diffData, panel, context) {
         
         if (provider === 'github') {
             prPrefix = `github_${prId}_`;
+        } else if (provider === 'gitlab') {
+            prPrefix = `gitlab_${prId}_`;
         } else {
             // Azure DevOps
-            prPrefix = `pr${prId}_`;
+            prPrefix = `azure_${prId}_`;
         }
         
         console.log(`📁 Filtering cache for ${provider} PR ${prId} with prefix: ${prPrefix}`);
@@ -1543,6 +1547,10 @@ async function getMonacoWebviewContent(diffData, panel, context) {
         // GitHub PR file URL format
         fileUrl = `https://github.com/${diffData.owner}/${diffData.repo}/pull/${diffData.prId}/files#diff-${encodeURIComponent(filePath)}`;
         console.log('🔗 Generated GitHub PR file URL:', fileUrl);
+    } else if (diffData.provider === 'gitlab' && diffData.owner && diffData.repo && diffData.prId && diffData.gitlabHost) {
+        // GitLab MR file URL format
+        fileUrl = `https://${diffData.gitlabHost}/${diffData.owner}/${diffData.repo}/-/merge_requests/${diffData.prId}/diffs#diff-content-${encodeURIComponent(filePath)}`;
+        console.log('🔗 Generated GitLab MR file URL:', fileUrl);
     }
 
     // Get Monaco Editor URIs

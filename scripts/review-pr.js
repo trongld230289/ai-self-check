@@ -67,6 +67,75 @@ async function showGitHubDiffInWebview(prAnalysis, stream) {
 }
 
 /**
+ * FUNCTION C - Handle GitLab MR diffs and show in webview
+ * Dedicated function for GitLab diffs - clean separation from other providers
+ * @param {object} mrAnalysis - GitLab MR analysis result
+ * @param {object} stream - VS Code stream for output
+ */
+async function showGitLabDiffInWebview(mrAnalysis, stream) {
+    console.log('🦊 GitLab Function C: Starting GitLab diff webview display');
+    
+    if (!mrAnalysis || !mrAnalysis.data || !mrAnalysis.data.fileChanges) {
+        stream.markdown('❌ **No GitLab diff data available**\n\n');
+        return;
+    }
+
+    const data = mrAnalysis.data;
+    const fileChanges = data.fileChanges;
+    
+    // Initialize global cache for GitLab diffs
+    if (!global.prDiffCache) {
+        global.prDiffCache = {};
+    }
+
+    stream.markdown('🦊 **GitLab Diff Webview Display**\n\n');
+    
+    // Cache all GitLab file changes for webview access
+    fileChanges.forEach(fileChange => {
+        const diffId = `gitlab_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        global.prDiffCache[diffId] = {
+            ...fileChange,
+            provider: 'gitlab',
+            prId: data.id,
+            owner: data.owner,
+            repo: data.repository,
+            gitlabHost: data.gitlabHost,
+            // Ensure diffContent is available for webview
+            diff: fileChange.diffContent || fileChange.diff || '',
+            diffContent: fileChange.diffContent || fileChange.diff || ''
+        };
+        
+        console.log(`🔍 Cached GitLab diff: ${diffId} for ${fileChange.path}`);
+        console.log(`📊 DEBUG: owner=${data.owner}, repo=${data.repository}, host=${data.gitlabHost}, provider=gitlab`);
+    });
+
+    // Debug cache summary for GitLab
+    const gitlabCacheKeys = Object.keys(global.prDiffCache).filter(k => k.startsWith(`gitlab_${data.id}_`));
+    console.log(`🦊 GitLab cache summary: ${gitlabCacheKeys.length} files cached:`, gitlabCacheKeys);
+
+    // Display file links with webview buttons (hover for details)
+    stream.markdown('📁 **Files in this GitLab MR:**\n\n');
+    
+    fileChanges.forEach(fileChange => {
+        const diffId = `gitlab_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const fileName = fileChange.path.split('/').pop();
+        
+        // Create compact button: filename (+X/-Y) as button text, full path as tooltip
+        stream.button({
+            command: 'aiSelfCheck.viewPrDiff',
+            title: `${fileName} (+${fileChange.additions}/-${fileChange.deletions})`,
+            tooltip: `${fileChange.path} | ${fileChange.changeType} | Click to view in Monaco Diff Editor`,
+            arguments: [diffId]
+        });
+        
+        // No additional text below - everything in button
+    });
+
+    stream.markdown('\n\n💡 **Hover over buttons to see file details**\n\n');
+}
+
+/**
  * FUNCTION A - Handle Azure DevOps PR diffs and show in webview  
  * Dedicated function for Azure DevOps diffs - clean separation from GitHub
  * @param {object} prAnalysis - Azure DevOps PR analysis result
@@ -112,7 +181,7 @@ async function showAzureDevOpsDiffInWebview(prAnalysis, stream) {
     
     // Cache all Azure DevOps file changes for webview access
     fileChanges.forEach(fileChange => {
-        const diffId = `pr${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const diffId = `azure_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
         
         global.prDiffCache[diffId] = {
             ...fileChange,
@@ -137,7 +206,7 @@ async function showAzureDevOpsDiffInWebview(prAnalysis, stream) {
     stream.markdown('📁 **Files in this Azure DevOps PR:**\n\n');
     
     fileChanges.forEach(fileChange => {
-        const diffId = `pr${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const diffId = `azure_${data.id}_${fileChange.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const fileName = fileChange.path.split('/').pop();
         
         // Create compact button: filename (+X/-Y) as button text, full path as tooltip
@@ -253,6 +322,11 @@ async function handleReviewPr(request, context, stream, token) {
         const azureUrlPattern = /https:\/\/dev\.azure\.com\/([^\/]+)\/([^\/]+)\/_git\/([^\/]+)\/pullrequest\/(\d+)/i;
         const azureMatch = userMessage.match(azureUrlPattern);
 
+        // GitLab URL pattern: https://gitlab.com/{owner}/{repo}/-/merge_requests/{id}
+        // Also supports custom GitLab instances: https://custom-gitlab.domain.com/{owner}/{repo}/-/merge_requests/{id}
+        const gitlabUrlPattern = /https:\/\/([^\/]+)\/([^\/]+)\/([^\/]+)\/-\/merge_requests\/(\d+)/i;
+        const gitlabMatch = userMessage.match(gitlabUrlPattern);
+
         if (githubMatch) {
             repoType = 'github';
             owner = githubMatch[1];
@@ -264,6 +338,16 @@ async function handleReviewPr(request, context, stream, token) {
             project = azureMatch[2];
             repository = azureMatch[3];
             prId = azureMatch[4];
+        } else if (gitlabMatch) {
+            repoType = 'gitlab';
+            // Extract GitLab instance, owner, repo, and MR ID
+            const gitlabHost = gitlabMatch[1]; // gitlab.com or custom instance
+            owner = gitlabMatch[2]; // namespace/group
+            repo = gitlabMatch[3]; // project name
+            prId = gitlabMatch[4]; // merge request ID
+            
+            // Store GitLab host for API calls
+            organization = gitlabHost;
         } else {
             // Fallback to simple PR ID pattern (Azure DevOps default)
             const prPattern = /(?:pullrequest(?:s)?\/(\d+)|pr[#\s]?(\d+)|id[:\s]?(\d+))/i;
@@ -286,16 +370,20 @@ async function handleReviewPr(request, context, stream, token) {
         }
 
         if (!prId) {
-            stream.markdown('🤖 **PR Reviewer (GitHub & Azure DevOps)**\n\n');
-            stream.markdown('I can review PRs from both GitHub and Azure DevOps! Please provide:\n\n');
+            stream.markdown('🤖 **PR Reviewer (GitHub, GitLab & Azure DevOps)**\n\n');
+            stream.markdown('I can review PRs/MRs from GitHub, GitLab, and Azure DevOps! Please provide:\n\n');
             stream.markdown('**GitHub:**\n');
             stream.markdown('• `https://github.com/owner/repo/pull/123`\n\n');
+            stream.markdown('**GitLab:**\n');
+            stream.markdown('• `https://gitlab.com/owner/repo/-/merge_requests/123`\n');
+            stream.markdown('• `https://custom-gitlab.domain.com/owner/repo/-/merge_requests/123`\n\n');
             stream.markdown('**Azure DevOps:**\n');
             stream.markdown('• `https://dev.azure.com/org/project/_git/repo/pullrequest/123`\n');
             stream.markdown('• `PR #123` or `ID: 123` (defaults to configured Azure DevOps)\n\n');
             stream.markdown('**Examples:**\n');
             stream.markdown('```\n');
             stream.markdown('https://github.com/microsoft/vscode/pull/12345\n');
+            stream.markdown('https://gitlab.com/gitlab-org/gitlab/-/merge_requests/12345\n');
             stream.markdown('https://dev.azure.com/BusinessWebUS/Shippo/_git/Shippo-Web/pullrequest/1396\n');
             stream.markdown('Review PR #123\n');
             stream.markdown('```\n\n');
@@ -309,6 +397,12 @@ async function handleReviewPr(request, context, stream, token) {
             stream.markdown(`🐙 **Repository**: ${owner}/${repo}\n`);
             stream.markdown(`📋 **PR**: #${prId}\n`);
             stream.markdown('⏳ **Fetching from GitHub API...**\n\n');
+        } else if (repoType === 'gitlab') {
+            stream.markdown('🦊 **Analyzing GitLab Merge Request...**\n\n');
+            stream.markdown(`🦊 **Repository**: ${owner}/${repo}\n`);
+            stream.markdown(`📋 **MR**: !${prId}\n`);
+            stream.markdown(`🌐 **Instance**: ${organization}\n`);
+            stream.markdown('⏳ **Fetching from GitLab API...**\n\n');
         } else {
             stream.markdown('🔍 **Analyzing Azure DevOps** 📋 **PR ID**: ' + prId + '\n\n');
             if (organization && project && repository) {
@@ -323,6 +417,10 @@ async function handleReviewPr(request, context, stream, token) {
             console.log(`🐙 DEBUG: Starting GitHub PR analysis for ${owner}/${repo}#${prId}`);
             prAnalysis = await analyzeGitHubPullRequest(stream, owner, repo, prId);
             console.log('🐙 DEBUG: GitHub PR analysis result:', JSON.stringify(prAnalysis, null, 2));
+        } else if (repoType === 'gitlab') {
+            console.log(`🦊 DEBUG: Starting GitLab MR analysis for ${owner}/${repo}!${prId}`);
+            prAnalysis = await analyzeGitLabMergeRequest(stream, organization, owner, repo, prId);
+            console.log('🦊 DEBUG: GitLab MR analysis result:', JSON.stringify(prAnalysis, null, 2));
         } else {
             console.log(`🔵 DEBUG: Starting Azure DevOps PR analysis for PR #${prId}`);
             prAnalysis = await analyzePullRequest(stream, prId, organization, project, repository);
@@ -335,6 +433,11 @@ async function handleReviewPr(request, context, stream, token) {
             if (repoType === 'github') {
                 stream.markdown('• GitHub token not configured or insufficient permissions\n');
                 stream.markdown('• PR ID does not exist or repository is private\n');
+                stream.markdown('• Rate limit exceeded\n');
+            } else if (repoType === 'gitlab') {
+                stream.markdown('• GitLab token not configured or insufficient permissions\n');
+                stream.markdown('• MR ID does not exist or repository is private\n');
+                stream.markdown('• GitLab instance not accessible\n');
                 stream.markdown('• Rate limit exceeded\n');
             } else {
                 stream.markdown('• Insufficient Azure DevOps access permissions\n');
@@ -1511,6 +1614,337 @@ async function makeGitHubRequest(url, token, method = 'GET', customHeaders = {})
 }
 
 /**
+ * Analyze GitLab Merge Request using GitLab REST API
+ * @param {object} stream - VS Code stream for progress updates
+ * @param {string} gitlabHost - GitLab instance hostname (e.g., gitlab.com)
+ * @param {string} owner - Repository owner/namespace
+ * @param {string} repo - Repository name
+ * @param {string} mrId - Merge Request number
+ */
+async function analyzeGitLabMergeRequest(stream, gitlabHost, owner, repo, mrId) {
+    try {
+        // Get GitLab token from VS Code settings
+        const config = vscode.workspace.getConfiguration('aiSelfCheck');
+        const gitlabToken = config.get('gitlab.personalAccessToken');
+
+        console.log(`🔄 Fetching GitLab MR ${owner}/${repo}!${mrId} from ${gitlabHost}`);
+
+        // Get MR details from GitLab API
+        const mrData = await getGitLabMR(gitlabHost, owner, repo, mrId, gitlabToken);
+
+        if (!mrData.success) {
+            console.error('Failed to get GitLab MR:', mrData.error);
+            stream.markdown('❌ **GitLab API Error**\n\n');
+            stream.markdown(`Error: ${mrData.error}\n\n`);
+
+            if (!gitlabToken) {
+                stream.markdown('**Configure GitLab Token:**\n\n');
+                stream.markdown('[🔧 Open User Settings JSON](command:workbench.action.openSettingsJson)\n\n');
+                stream.markdown('```json\n');
+                stream.markdown('{\n');
+                stream.markdown('    "aiSelfCheck.gitlab.personalAccessToken": "YOUR_GITLAB_TOKEN"\n');
+                stream.markdown('}\n');
+                stream.markdown('```\n\n');
+                stream.markdown(`**Create token at:** https://${gitlabHost}/-/profile/personal_access_tokens\n`);
+                stream.markdown('**Required scope:** `read_api` (for public repos) or `api` (for private repos)\n\n');
+            }
+
+            return { error: mrData.error };
+        }
+
+        // ✅ FIX: Return the correct structure - extract the data portion
+        console.log(`🔧 DEBUG: GitLab API returned ${mrData.data?.finalDiff?.length || 0} chars of finalDiff`);
+        console.log(`🔧 DEBUG: GitLab API returned ${mrData.data?.fileChanges?.length || 0} file changes`);
+        
+        return {
+            success: true,
+            data: mrData.data
+        };
+
+    } catch (error) {
+        console.error('Error in analyzeGitLabMergeRequest:', error);
+        return { error: `Analysis failed: ${error.message}` };
+    }
+}
+
+/**
+ * Get Merge Request data from GitLab REST API
+ * @param {string} gitlabHost - GitLab instance hostname
+ * @param {string} owner - Repository owner/namespace
+ * @param {string} repo - Repository name
+ * @param {string} mrId - Merge Request number
+ * @param {string} token - GitLab Personal Access Token (optional for public repos)
+ */
+async function getGitLabMR(gitlabHost, owner, repo, mrId, token) {
+    try {
+        console.log(`📝 Fetching MR details: ${owner}/${repo}!${mrId} from ${gitlabHost}`);
+
+        // Encode project path for GitLab API (owner/repo becomes owner%2Frepo)
+        const projectPath = encodeURIComponent(`${owner}/${repo}`);
+
+        // Get MR details
+        const mrUrl = `https://${gitlabHost}/api/v4/projects/${projectPath}/merge_requests/${mrId}`;
+        const mrResponse = await makeGitLabRequest(mrUrl, token);
+
+        if (!mrResponse.success) {
+            console.error('Failed to get MR details:', mrResponse.error);
+            return { success: false, error: `Failed to get MR: ${mrResponse.error}` };
+        }
+
+        const mr = mrResponse.data;
+
+        // Get MR changes (diffs)
+        console.log('📁 Fetching changed files...');
+        const changesUrl = `https://${gitlabHost}/api/v4/projects/${projectPath}/merge_requests/${mrId}/changes`;
+        const changesResponse = await makeGitLabRequest(changesUrl, token);
+
+        if (!changesResponse.success) {
+            console.error('Failed to get changes:', changesResponse.error);
+            return { success: false, error: `Failed to get changes: ${changesResponse.error}` };
+        }
+
+        const changes = changesResponse.data;
+        console.log(`✅ Found ${changes.changes?.length || 0} changed files`);
+        
+        // Debug: Log structure of changes response
+        if (changes.changes && changes.changes.length > 0) {
+            console.log('🔍 DEBUG: GitLab changes structure:', JSON.stringify(changes.changes[0], null, 2));
+        }
+
+        // Get diff in unified format
+        console.log('🔄 Fetching unified diff from GitLab...');
+        const diffUrl = `https://${gitlabHost}/api/v4/projects/${projectPath}/merge_requests/${mrId}.diff`;
+        const diffResponse = await makeGitLabRequest(diffUrl, token, 'GET', {
+            'Accept': 'text/plain'
+        });
+
+        let finalDiff = '';
+        if (diffResponse.success && typeof diffResponse.data === 'string') {
+            finalDiff = diffResponse.data;
+            console.log(`✅ Got unified diff: ${finalDiff.length} characters`);
+        } else {
+            console.log('⚠️ Could not get unified diff, will build from file changes');
+        }
+
+        // Process file changes
+        const fileChanges = (changes.changes || []).map(change => {
+            let diffContent = '';
+            
+            // Debug: Log each change structure
+            console.log(`🔍 Processing file: ${change.new_path || change.old_path}`);
+            console.log(`🔍 Change has diff: ${!!change.diff}, diff length: ${change.diff?.length || 0}`);
+
+            // GitLab API provides diff content directly
+            if (change.diff) {
+                // Build complete diff format from GitLab diff
+                diffContent = `diff --git a/${change.old_path || change.new_path} b/${change.new_path}\n`;
+                
+                // Add file mode information based on status
+                if (change.new_file) {
+                    diffContent += `new file mode 100644\n`;
+                    diffContent += `--- /dev/null\n`;
+                    diffContent += `+++ b/${change.new_path}\n`;
+                } else if (change.deleted_file) {
+                    diffContent += `deleted file mode 100644\n`;
+                    diffContent += `--- a/${change.old_path}\n`;
+                    diffContent += `+++ /dev/null\n`;
+                } else if (change.renamed_file) {
+                    diffContent += `--- a/${change.old_path}\n`;
+                    diffContent += `+++ b/${change.new_path}\n`;
+                } else {
+                    diffContent += `--- a/${change.old_path || change.new_path}\n`;
+                    diffContent += `+++ b/${change.new_path}\n`;
+                }
+                
+                // Add the diff content
+                diffContent += change.diff;
+                
+                console.log(`🔧 DEBUG: Built complete diff for ${change.new_path}: ${diffContent.length} chars`);
+            } else if (finalDiff) {
+                // Extract from unified diff as fallback
+                const fileName = change.new_path || change.old_path;
+                const filePattern = new RegExp(`diff --git a/${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} b/${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)(?=diff --git|$)`, 'g');
+                const match = filePattern.exec(finalDiff);
+                if (match) {
+                    diffContent = `diff --git a/${fileName} b/${fileName}${match[1]}`;
+                    console.log(`🔧 DEBUG: Extracted diff from finalDiff for ${fileName}: ${diffContent.length} chars`);
+                }
+            } else {
+                // Last resort: create minimal diff representation
+                console.log(`⚠️ WARNING: No diff content available for ${change.new_path || change.old_path}, creating placeholder`);
+                const fileName = change.new_path || change.old_path;
+                diffContent = `diff --git a/${fileName} b/${fileName}\n`;
+                if (change.new_file) {
+                    diffContent += `new file mode 100644\n--- /dev/null\n+++ b/${fileName}\n@@ -0,0 +1,1 @@\n+[File content not available via GitLab API]`;
+                } else if (change.deleted_file) {
+                    diffContent += `deleted file mode 100644\n--- a/${fileName}\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-[File content not available via GitLab API]`;
+                } else {
+                    diffContent += `--- a/${fileName}\n+++ b/${fileName}\n@@ -1,1 +1,1 @@\n-[Original content not available]\n+[Modified content not available]`;
+                }
+            }
+
+            // Count additions and deletions from diff
+            const { additions, deletions } = countDiffLines(diffContent);
+
+            return {
+                path: change.new_path || change.old_path,
+                changeType: change.new_file ? 'added' : 
+                           change.deleted_file ? 'removed' : 
+                           change.renamed_file ? 'renamed' : 'modified',
+                additions: additions,
+                deletions: deletions,
+                changes: additions + deletions,
+                diffContent: diffContent,
+                diff: diffContent, // For compatibility
+                source: 'GitLab API',
+                oldPath: change.old_path,
+                newPath: change.new_path
+            };
+        });
+
+        // Get commits
+        console.log('📝 Fetching commits...');
+        const commitsUrl = `https://${gitlabHost}/api/v4/projects/${projectPath}/merge_requests/${mrId}/commits`;
+        const commitsResponse = await makeGitLabRequest(commitsUrl, token);
+
+        let commits = [];
+        if (commitsResponse.success && commitsResponse.data) {
+            commits = commitsResponse.data.map(commit => ({
+                commitId: commit.id,
+                comment: commit.message,
+                author: {
+                    name: commit.author_name,
+                    date: commit.authored_date
+                }
+            }));
+            console.log(`✅ Found ${commits.length} commits`);
+        }
+
+        return {
+            success: true,
+            data: {
+                id: mrId,
+                title: mr.title || `MR !${mrId}`,
+                description: mr.description || 'No description provided',
+                author: mr.author?.username || 'Unknown',
+                status: mr.state || 'opened',
+                owner: owner,
+                repository: repo,
+                gitlabHost: gitlabHost,
+                sourceCommit: mr.sha,
+                targetCommit: mr.target_branch_sha || mr.merge_commit_sha,
+                sourceBranch: mr.source_branch,
+                targetBranch: mr.target_branch,
+                diffCommand: 'GitLab API (workspace-independent)',
+                fileChanges: fileChanges,
+                commits: commits,
+                totalCommits: commits.length,
+                finalDiff: finalDiff,
+                commitsList: commits.map(commit => ({
+                    id: commit.commitId.substring(0, 7),
+                    fullId: commit.commitId,
+                    message: commit.comment,
+                    author: commit.author.name,
+                    date: commit.author.date
+                })),
+                analysis: {
+                    quality: `GitLab MR with ${fileChanges.length} file(s) changed`,
+                    security: 'Complete MR diff analysis',
+                    performance: 'Full MR data from GitLab API',
+                    testCoverage: 'Review test coverage for modified files',
+                    codeReview: [
+                        `📁 ${fileChanges.length} file(s) changed`,
+                        `➕ ${fileChanges.reduce((sum, f) => sum + f.additions, 0)} lines added`,
+                        `➖ ${fileChanges.reduce((sum, f) => sum + f.deletions, 0)} lines removed`,
+                        `🔍 Source: GitLab REST API`,
+                        `📝 ${commits.length} commits`,
+                        `🌿 ${mr.source_branch} → ${mr.target_branch}`
+                    ]
+                }
+            }
+        };
+    } catch (error) {
+        console.error('Error in getGitLabMR:', error);
+        return { success: false, error: `Unable to fetch MR: ${error.message}` };
+    }
+}
+
+/**
+ * Make HTTP request to GitLab REST API
+ * @param {string} url - API endpoint URL
+ * @param {string} token - GitLab Personal Access Token (optional)
+ * @param {string} method - HTTP method (default: GET)
+ * @param {object} customHeaders - Additional headers
+ */
+async function makeGitLabRequest(url, token, method = 'GET', customHeaders = {}) {
+    return new Promise((resolve) => {
+        const urlObj = new URL(url);
+        const headers = {
+            'User-Agent': 'VSCode-AI-Self-Check-Extension',
+            'Accept': 'application/json',
+            ...customHeaders
+        };
+
+        // Add authentication if token is provided
+        if (token && token.trim()) {
+            headers['PRIVATE-TOKEN'] = token;
+        }
+
+        const options = {
+            hostname: urlObj.hostname,
+            port: 443,
+            path: urlObj.pathname + urlObj.search,
+            method: method,
+            headers: headers
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                try {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        // Check if response is JSON or plain text (diff)
+                        if (customHeaders['Accept']?.includes('text/plain')) {
+                            resolve({ success: true, data: data });
+                        } else {
+                            const parsed = JSON.parse(data);
+                            resolve({ success: true, data: parsed });
+                        }
+                    } else {
+                        let errorMsg = `HTTP ${res.statusCode}`;
+                        try {
+                            const errorData = JSON.parse(data);
+                            errorMsg += `: ${errorData.message || data}`;
+                        } catch {
+                            errorMsg += `: ${data}`;
+                        }
+                        resolve({ success: false, error: errorMsg });
+                    }
+                } catch (parseError) {
+                    resolve({ success: false, error: `Parse error: ${parseError.message}` });
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            resolve({ success: false, error: error.message });
+        });
+
+        req.setTimeout(15000, () => {
+            req.destroy();
+            resolve({ success: false, error: 'Request timeout' });
+        });
+
+        req.end();
+    });
+}
+
+/**
  * Parse real git diff into structured format
  */
 function parseRealGitDiff(gitDiff, prId, org, proj, repo, diffCommand) {
@@ -1618,20 +2052,65 @@ function parseRealGitDiff(gitDiff, prId, org, proj, repo, diffCommand) {
 async function addQuickReviewOption(stream, prAnalysis, request) {
     const data = prAnalysis.data;
 
-    // Build diff from finalDiff or individual file diffs
+    // 🔍 DEBUG: Check what we have in prAnalysis structure
+    console.log('🔧 DEBUG addQuickReviewOption: prAnalysis structure:', JSON.stringify({
+        hasData: !!prAnalysis.data,
+        finalDiffLength: prAnalysis.data?.finalDiff?.length || 0,
+        fileChangesCount: prAnalysis.data?.fileChanges?.length || 0,
+        keys: Object.keys(prAnalysis.data || {})
+    }, null, 2));
+
+    // Build diff from cache (same source as webview) or fallback to data structure
     let diffContent = '';
 
-    if (data.finalDiff && data.finalDiff.trim()) {
+    // 🔄 NEW APPROACH: Try to get diff from cache first (same as webview)
+    if (global.prDiffCache) {
+        const cacheKeys = Object.keys(global.prDiffCache);
+        console.log(`🔍 Checking cache for diff content. Available keys: ${cacheKeys.length}`);
+        
+        // Filter cache keys for current PR/MR
+        const relevantKeys = cacheKeys.filter(key => {
+            if (data.gitlabHost && key.includes(`gitlab_${data.id}_`)) return true;
+            if (data.owner && data.repository && key.includes(`github_${data.id}_`)) return true;
+            if (data.organization && key.includes(`azure_${data.id}_`)) return true;
+            return false;
+        });
+        
+        console.log(`🎯 Found ${relevantKeys.length} relevant cache entries for current PR/MR`);
+        
+        if (relevantKeys.length > 0) {
+            // Build diff from cache (same as webview uses)
+            const cacheDiffs = relevantKeys.map(key => {
+                const cached = global.prDiffCache[key];
+                console.log(`📄 Cache entry ${key}: diffContent length = ${cached.diffContent?.length || 0}`);
+                return cached.diffContent || cached.diff || '';
+            }).filter(diff => diff.trim());
+            
+            if (cacheDiffs.length > 0) {
+                diffContent = cacheDiffs.join('\n\n');
+                console.log(`✅ Using cache diff: ${diffContent.length} chars from ${cacheDiffs.length} files`);
+            }
+        }
+    }
+
+    // 🔄 FALLBACK 1: Original finalDiff approach
+    if (!diffContent && data.finalDiff && data.finalDiff.trim()) {
         diffContent = data.finalDiff;
-        console.log(`✅ Using finalDiff: ${diffContent.length} chars`);
-    } else if (data.fileChanges && data.fileChanges.length > 0) {
-        // Fallback: build diff from individual file diffs
-        console.log(`⚠️ No finalDiff, building from ${data.fileChanges.length} file changes`);
+        console.log(`✅ Fallback to finalDiff: ${diffContent.length} chars`);
+    } 
+    // 🔄 FALLBACK 2: Build from fileChanges
+    else if (!diffContent && data.fileChanges && data.fileChanges.length > 0) {
+        console.log(`⚠️ Fallback to fileChanges: building from ${data.fileChanges.length} file changes`);
+        
+        data.fileChanges.forEach((file, index) => {
+            console.log(`🔍 File ${index + 1}: ${file.path}, diffContent length: ${file.diffContent?.length || 0}`);
+        });
+        
         diffContent = data.fileChanges
             .filter(file => file.diffContent && file.diffContent.trim())
             .map(file => file.diffContent)
             .join('\n\n');
-        console.log(`✅ Built diff from files: ${diffContent.length} chars`);
+        console.log(`✅ Built diff from fileChanges: ${diffContent.length} chars`);
     }
 
     // Only proceed if we have any diff content
@@ -2112,21 +2591,23 @@ async function displayPrReviewResults(stream, prAnalysis) {
     const data = prAnalysis.data;
 
     // Detect provider type based on PR data structure
-    const isGitHubPR = data.owner && data.repository; // GitHub has owner/repo
+    const isGitHubPR = data.owner && data.repository && !data.gitlabHost; // GitHub has owner/repo but no gitlabHost
+    const isGitLabMR = data.owner && data.repository && data.gitlabHost; // GitLab has owner/repo and gitlabHost
     const isAzurePR = data.organization && data.project; // Azure has org/project
 
-    console.log(`🔍 Provider detection: GitHub=${isGitHubPR}, Azure=${isAzurePR}`);
+    console.log(`🔍 Provider detection: GitHub=${isGitHubPR}, GitLab=${isGitLabMR}, Azure=${isAzurePR}`);
 
-    // Display commits list (common for both providers)
+    // Display commits list (common for all providers)
     if (data.commitsList && data.commitsList.length > 0) {
-        stream.markdown('## 📝 Commits in this PR\n\n');
+        const commitType = isGitLabMR ? 'MR' : 'PR';
+        stream.markdown(`## 📝 Commits in this ${commitType}\n\n`);
         data.commitsList.forEach((commit, index) => {
             stream.markdown(`${index + 1}. **\`${commit.id}\`** - ${commit.message}\n`);
             stream.markdown(`   👤 *${commit.author}* on ${new Date(commit.date).toLocaleDateString()}\n\n`);
         });
     }
 
-    // Summary of Changes section (common for both providers)
+    // Summary of Changes section (common for all providers)
     const totalFiles = data.fileChanges ? data.fileChanges.length : 0;
     const totalAdditions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.additions, 0) : 0;
     const totalDeletions = data.fileChanges ? data.fileChanges.reduce((sum, f) => sum + f.deletions, 0) : 0;
@@ -2140,6 +2621,9 @@ async function displayPrReviewResults(stream, prAnalysis) {
     if (isGitHubPR) {
         console.log('🐙 Routing to GitHub Function B');
         await showGitHubDiffInWebview(prAnalysis, stream);
+    } else if (isGitLabMR) {
+        console.log('🦊 Routing to GitLab Function C');
+        await showGitLabDiffInWebview(prAnalysis, stream);
     } else if (isAzurePR) {
         console.log('🔵 Routing to Azure DevOps Function A');
         await showAzureDevOpsDiffInWebview(prAnalysis, stream);
@@ -2149,7 +2633,7 @@ async function displayPrReviewResults(stream, prAnalysis) {
         await showAzureDevOpsDiffInWebview(prAnalysis, stream);
     }
 
-    // Provider-specific diff display is handled above by Function A or B
+    // Provider-specific diff display is handled above by Function A, B, or C
     console.log(`📊 Provider routing complete. ${totalFiles} files processed.`);
 }
 
@@ -2217,6 +2701,10 @@ module.exports = {
     parseRealGitDiff,
     getFileContent,
     getGitHubFileContent,         // GitHub file content API
+    analyzeGitLabMergeRequest,    // GitLab MR analysis
+    getGitLabMR,                  // GitLab MR API
+    makeGitLabRequest,            // GitLab API request helper
     showGitHubDiffInWebview,      // Function B - GitHub diff webview
+    showGitLabDiffInWebview,      // Function C - GitLab diff webview
     showAzureDevOpsDiffInWebview  // Function A - Azure DevOps diff webview
 };
